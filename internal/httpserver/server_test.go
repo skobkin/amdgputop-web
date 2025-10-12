@@ -261,6 +261,118 @@ func TestAPIGPUMetrics(t *testing.T) {
 	}
 }
 
+func TestAPIGPUProcs(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	sysfsRoot := t.TempDir()
+	debugRoot := t.TempDir()
+	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "9\n")
+
+	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
+	if err != nil {
+		t.Fatalf("NewReader error: %v", err)
+	}
+
+	samplerManager, err := sampler.NewManager(5*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	if err != nil {
+		t.Fatalf("NewManager error: %v", err)
+	}
+
+	samplerCtx, samplerCancel := context.WithCancel(context.Background())
+	t.Cleanup(samplerCancel)
+	go func() { _ = samplerManager.Run(samplerCtx) }()
+
+	waitFor(t, 2*time.Second, samplerManager.Ready)
+
+	procRoot := t.TempDir()
+	pidDir := filepath.Join(procRoot, "3100")
+	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o755); err != nil {
+		t.Fatalf("mkdir fdinfo: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o755); err != nil {
+		t.Fatalf("mkdir fd: %v", err)
+	}
+	writeFile(t, filepath.Join(pidDir, "comm"), "proc\n")
+	writeFile(t, filepath.Join(pidDir, "cmdline"), "proc\x00--gpu\x00")
+	writeFile(t, filepath.Join(pidDir, "status"), "Name:\tproc\nUid:\t0\t0\t0\t0\n")
+	fdinfoData, err := os.ReadFile(filepath.Join("..", "procscan", "testdata", "fdinfo_mem_engine.txt"))
+	if err != nil {
+		t.Fatalf("read fdinfo fixture: %v", err)
+	}
+	writeFile(t, filepath.Join(pidDir, "fdinfo", "5"), string(fdinfoData))
+	if err := os.Symlink("/dev/dri/renderD128", filepath.Join(pidDir, "fd", "5")); err != nil {
+		t.Fatalf("symlink fd: %v", err)
+	}
+
+	procCfg := config.ProcConfig{
+		Enable:       true,
+		ScanInterval: 25 * time.Millisecond,
+		MaxPIDs:      16,
+		MaxFDsPerPID: 16,
+	}
+
+	gpus := []gpu.Info{{ID: "card0", RenderNode: "/dev/dri/renderD128"}}
+
+	procManager, err := procscan.NewManager(procCfg, procRoot, gpus, logger)
+	if err != nil {
+		t.Fatalf("NewProcManager error: %v", err)
+	}
+
+	procCtx, procCancel := context.WithCancel(context.Background())
+	t.Cleanup(procCancel)
+	go func() { _ = procManager.Run(procCtx) }()
+
+	waitFor(t, 2*time.Second, procManager.Ready)
+
+	cfg := defaultTestConfig()
+	cfg.Proc = procCfg
+	cfg.ProcRoot = procRoot
+
+	_, ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/gpus/card0/procs")
+	if err != nil {
+		t.Fatalf("GET procs failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var payload procscan.Snapshot
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode procs: %v", err)
+	}
+
+	if payload.GPUId != "card0" {
+		t.Fatalf("unexpected gpu id %q", payload.GPUId)
+	}
+	if !payload.Capabilities.VRAMGTTFromFDInfo {
+		t.Fatalf("expected memory capability")
+	}
+	if len(payload.Processes) == 0 {
+		t.Fatalf("expected processes in snapshot")
+	}
+
+	// Requesting procs when manager is nil should yield 503.
+	_, tsNoProc := newTestHTTPServer(t, cfg, gpus, samplerManager, nil)
+	defer tsNoProc.Close()
+
+	resp2, err := http.Get(tsNoProc.URL + "/api/gpus/card0/procs")
+	if err != nil {
+		t.Fatalf("GET procs without manager failed: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when proc manager unavailable, got %d", resp2.StatusCode)
+	}
+}
+
 func TestWebSocketHelloAndStats(t *testing.T) {
 	t.Parallel()
 

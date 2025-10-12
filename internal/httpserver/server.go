@@ -56,7 +56,7 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 	mux.HandleFunc("/version", s.handleVersion)
 	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/api/gpus", s.handleAPIGPUs)
-	mux.HandleFunc("/api/gpus/", s.handleAPIGPUMetrics)
+	mux.HandleFunc("/api/gpus/", s.handleAPIGPUSubresource)
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.Handle("/", s.staticHandler())
 
@@ -149,7 +149,7 @@ func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleAPIGPUMetrics(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAPIGPUSubresource(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -163,7 +163,7 @@ func (s *Server) handleAPIGPUMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	segments := strings.Split(rest, "/")
-	if len(segments) != 2 || segments[0] == "" || segments[1] != "metrics" {
+	if len(segments) != 2 || segments[0] == "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -174,6 +174,17 @@ func (s *Server) handleAPIGPUMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	switch segments[1] {
+	case "metrics":
+		s.serveGPUMetrics(w, r, gpuID)
+	case "procs":
+		s.serveGPUProcs(w, r, gpuID)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID string) {
 	if s.sampler == nil {
 		http.Error(w, "metrics sampler unavailable", http.StatusServiceUnavailable)
 		return
@@ -188,6 +199,26 @@ func (s *Server) handleAPIGPUMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(sample); err != nil {
 		s.logger.Error("failed to encode gpu metrics", "gpu_id", gpuID, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) serveGPUProcs(w http.ResponseWriter, r *http.Request, gpuID string) {
+	if s.proc == nil {
+		http.Error(w, "process scanner unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	snapshot, ok := s.proc.Latest(gpuID)
+	if !ok {
+		http.Error(w, "no process data available", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(snapshot); err != nil {
+		s.logger.Error("failed to encode gpu process data", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

@@ -363,6 +363,7 @@ docker run --rm -p 8080:8080 \
 * [x] Extract VRAM/GTT totals from `fdinfo: drm-memory`.
 * [x] Optional engine time deltas if `drm-engine` present; otherwise null.
 * [x] Separate cadence and payload (`procs` frames); capability flag to client.
+* [x] REST endpoint `/api/gpus/{id}/procs` for direct polling.
 * [ ] Frontend `<ProcTable>` with sorting & null‑safe UI.
 
 ### Phase 4 — Robustness & Observability
