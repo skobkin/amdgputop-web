@@ -94,6 +94,11 @@ func main() {
 		return
 	}
 
+	infoByID := make(map[string]gpu.Info, len(infos))
+	for _, info := range infos {
+		infoByID[info.ID] = info
+	}
+
 	selected := make([]gpu.Info, 0, len(infos))
 	for _, info := range infos {
 		if opts.gpuFilter != "" && opts.gpuFilter != info.ID {
@@ -162,7 +167,7 @@ func main() {
 	for _, id := range ids {
 		reader, ok := readers[id]
 		if !ok {
-			fmt.Printf("GPU %s sample: metrics unavailable (reader init failed)\n\n", id)
+			fmt.Printf("GPU %s (%s) sample: metrics unavailable (reader init failed)\n\n", id, gpuLabel(infoByID[id]))
 			continue
 		}
 		sample := reader.Sample()
@@ -171,7 +176,7 @@ func main() {
 			logger.Error("encode sample", "gpu_id", id, "err", err)
 			continue
 		}
-		fmt.Printf("GPU %s sample:\n%s\n\n", id, string(data))
+		fmt.Printf("GPU %s (%s) sample:\n%s\n\n", id, gpuLabel(infoByID[id]), string(data))
 	}
 
 	if procManager != nil {
@@ -179,7 +184,7 @@ func main() {
 		for _, id := range ids {
 			snapshot, ok := procManager.Latest(id)
 			if !ok {
-				fmt.Printf("- %s: no process data available yet\n", id)
+				fmt.Printf("- %s (%s): no process data available yet\n", id, gpuLabel(infoByID[id]))
 				continue
 			}
 			data, err := json.MarshalIndent(snapshot, "", "  ")
@@ -187,7 +192,7 @@ func main() {
 				logger.Error("encode process snapshot", "gpu_id", id, "err", err)
 				continue
 			}
-			fmt.Printf("GPU %s processes:\n%s\n", id, string(data))
+			fmt.Printf("GPU %s (%s) processes:\n%s\n", id, gpuLabel(infoByID[id]), string(data))
 		}
 		fmt.Println()
 	}
@@ -202,4 +207,11 @@ func waitUntil(timeout time.Duration, condition func() bool) bool {
 		time.Sleep(20 * time.Millisecond)
 	}
 	return condition()
+}
+
+func gpuLabel(info gpu.Info) string {
+	if info.Name != "" {
+		return info.Name
+	}
+	return info.ID
 }
