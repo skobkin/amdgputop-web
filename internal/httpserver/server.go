@@ -7,8 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"strings"
+	"sync/atomic"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"nhooyr.io/websocket"
 
 	"github.com/skobkin/amdgputop-web/internal/api"
 	"github.com/skobkin/amdgputop-web/internal/config"
@@ -16,11 +22,11 @@ import (
 	"github.com/skobkin/amdgputop-web/internal/procscan"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
 	"github.com/skobkin/amdgputop-web/internal/version"
-	"nhooyr.io/websocket"
 )
 
 const (
 	readHeaderTimeout = 5 * time.Second
+	wsSendQueueSize   = 16
 )
 
 // Server wraps the HTTP surface area of the application.
@@ -32,6 +38,15 @@ type Server struct {
 	gpuIndex   map[string]gpu.Info
 	sampler    *sampler.Manager
 	proc       *procscan.Manager
+
+	maxWSClients int64
+	wsActive     atomic.Int64
+	wsTotal      atomic.Uint64
+	wsRejected   atomic.Uint64
+	wsSent       atomic.Uint64
+	wsDropped    atomic.Uint64
+	wsConnIDs    atomic.Uint64
+	requestIDs   atomic.Uint64
 }
 
 // New assembles a Server with its handlers.
@@ -43,6 +58,10 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 		gpuIndex: make(map[string]gpu.Info, len(gpus)),
 		sampler:  samplerManager,
 		proc:     procManager,
+	}
+
+	if cfg.WS.MaxClients > 0 {
+		s.maxWSClients = int64(cfg.WS.MaxClients)
 	}
 
 	for _, info := range gpus {
@@ -63,9 +82,18 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.Handle("/", s.staticHandler())
 
+	if cfg.EnablePrometheus {
+		s.registerPrometheus(mux)
+	}
+	if cfg.EnablePprof {
+		registerPprof(mux)
+	}
+
+	handler := s.withRequestLogging(mux)
+
 	s.httpServer = &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
@@ -107,6 +135,7 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	}
 
 	info := s.readiness()
+	logger := s.loggerFromContext(r.Context())
 
 	statusCode := http.StatusOK
 	if info.Status != "ok" {
@@ -116,7 +145,7 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(info); err != nil {
-		s.logger.Error("failed to encode readyz response", "err", err)
+		logger.Error("failed to encode readyz response", "err", err)
 	}
 }
 
@@ -128,10 +157,11 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	info := version.Current()
+	logger := s.loggerFromContext(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(info); err != nil {
-		s.logger.Error("failed to encode version response", "err", err)
+		logger.Error("failed to encode version response", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -149,16 +179,17 @@ func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger := s.loggerFromContext(r.Context())
 	data, err := embeddedAssets.ReadFile("assets/api.html")
 	if err != nil {
-		s.logger.Error("failed to read api docs asset", "err", err)
+		logger.Error("failed to read api docs asset", "err", err)
 		http.Error(w, "missing api docs", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := w.Write(data); err != nil {
-		s.logger.Warn("failed to write api docs response", "err", err)
+		logger.Warn("failed to write api docs response", "err", err)
 	}
 }
 
@@ -169,9 +200,10 @@ func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger := s.loggerFromContext(r.Context())
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(s.gpus); err != nil {
-		s.logger.Error("failed to encode gpu list", "err", err)
+		logger.Error("failed to encode gpu list", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -224,9 +256,10 @@ func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID s
 		return
 	}
 
+	logger := s.loggerFromContext(r.Context())
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(sample); err != nil {
-		s.logger.Error("failed to encode gpu metrics", "gpu_id", gpuID, "err", err)
+		logger.Error("failed to encode gpu metrics", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -244,20 +277,29 @@ func (s *Server) serveGPUProcs(w http.ResponseWriter, r *http.Request, gpuID str
 		return
 	}
 
+	logger := s.loggerFromContext(r.Context())
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(snapshot); err != nil {
-		s.logger.Error("failed to encode gpu process data", "gpu_id", gpuID, "err", err)
+		logger.Error("failed to encode gpu process data", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	reqLogger := s.loggerFromContext(r.Context())
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	if !s.reserveWS() {
+		reqLogger.Warn("websocket rejected", "reason", "capacity")
+		http.Error(w, "websocket capacity reached", http.StatusServiceUnavailable)
+		return
+	}
+	defer s.releaseWS()
 
 	opts := &websocket.AcceptOptions{
 		OriginPatterns: originPatterns(s.cfg.AllowedOrigins),
@@ -265,29 +307,26 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := websocket.Accept(w, r, opts)
 	if err != nil {
-		s.logger.Warn("websocket accept failed", "err", err)
+		reqLogger.Warn("websocket accept failed", "err", err)
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	connID := s.wsConnIDs.Add(1)
+	s.wsTotal.Add(1)
+	logger := reqLogger.With("ws_id", connID)
+
+	outbound := newWSOutbound(wsSendQueueSize, &s.wsDropped)
 
 	features := map[string]bool{
 		"procs": s.proc != nil,
 	}
 	hello := api.NewHelloMessage(int(s.cfg.SampleInterval/time.Millisecond), s.gpus, features)
 
-	if err := s.writeJSON(r.Context(), conn, hello); err != nil {
-		s.logger.Warn("failed to send hello", "err", err)
-		return
-	}
-
 	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
 
-	messageCh := make(chan []byte, 8)
-	readErrCh := make(chan error, 1)
-	go s.readMessages(ctx, conn, messageCh, readErrCh)
-
-	defaultGPU := s.defaultGPU()
+	writerDone := make(chan struct{})
+	go s.wsWriter(ctx, conn, outbound, cancel, logger, writerDone)
 
 	var (
 		subCh           <-chan sampler.Sample
@@ -296,6 +335,28 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		procUnsubscribe func()
 		currentGPU      string
 	)
+
+	defer func() {
+		if unsubscribe != nil {
+			unsubscribe()
+		}
+		if procUnsubscribe != nil {
+			procUnsubscribe()
+		}
+		outbound.close()
+		cancel()
+		<-writerDone
+	}()
+
+	if !s.enqueueMessage(outbound, hello, logger) {
+		return
+	}
+
+	messageCh := make(chan []byte, 8)
+	readErrCh := make(chan error, 1)
+	go s.readMessages(ctx, conn, messageCh, readErrCh)
+
+	defaultGPU := s.defaultGPU()
 
 	switchSubscription := func(target string) error {
 		if target == "" {
@@ -329,33 +390,24 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		if s.proc != nil {
 			procStream, procCancel, err := s.proc.Subscribe(target)
 			if err != nil {
-				s.logger.Warn("failed to subscribe proc scanner", "gpu_id", target, "err", err)
+				logger.Warn("failed to subscribe proc scanner", "gpu_id", target, "err", err)
 			} else {
 				procCh = procStream
 				procUnsubscribe = procCancel
 			}
 		}
 		currentGPU = target
-		s.logger.Info("ws subscribed", "gpu_id", target)
+		logger.Info("ws subscribed", "gpu_id", target)
 		return nil
 	}
 
-	defer func() {
-		if unsubscribe != nil {
-			unsubscribe()
-		}
-		if procUnsubscribe != nil {
-			procUnsubscribe()
-		}
-	}()
-
 	if defaultGPU != "" {
 		if err := switchSubscription(defaultGPU); err != nil {
-			s.logger.Warn("failed to subscribe default gpu", "gpu_id", defaultGPU, "err", err)
-			_ = s.sendError(ctx, conn, fmt.Sprintf("failed to subscribe default gpu: %v", err))
+			logger.Warn("failed to subscribe default gpu", "gpu_id", defaultGPU, "err", err)
+			_ = s.enqueueError(outbound, fmt.Sprintf("failed to subscribe default gpu: %v", err), logger)
 		}
 	} else if len(s.gpus) == 0 {
-		_ = s.sendError(ctx, conn, "no GPUs detected")
+		_ = s.enqueueError(outbound, "no GPUs detected", logger)
 	}
 
 	for {
@@ -366,8 +418,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				currentGPU = ""
 				continue
 			}
-			if err := s.writeJSON(ctx, conn, api.NewStatsMessage(sample)); err != nil {
-				s.logger.Warn("failed to write stats message", "err", err)
+			if !s.enqueueMessage(outbound, api.NewStatsMessage(sample), logger) {
 				return
 			}
 		case snapshot, ok := <-procCh:
@@ -375,8 +426,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				procCh = nil
 				continue
 			}
-			if err := s.writeJSON(ctx, conn, api.NewProcsMessage(snapshot)); err != nil {
-				s.logger.Warn("failed to write procs message", "err", err)
+			if !s.enqueueMessage(outbound, api.NewProcsMessage(snapshot), logger) {
 				return
 			}
 		case data, ok := <-messageCh:
@@ -384,16 +434,16 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				messageCh = nil
 				continue
 			}
-			if err := s.handleClientMessage(ctx, conn, data, switchSubscription, defaultGPU); err != nil {
+			if err := s.handleClientMessage(outbound, data, switchSubscription, defaultGPU, logger); err != nil {
 				if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
 					return
 				}
-				s.logger.Warn("client message handling error", "err", err)
+				logger.Warn("client message handling error", "err", err)
 				return
 			}
 		case err := <-readErrCh:
 			if err != nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
-				s.logger.Warn("websocket read error", "err", err)
+				logger.Warn("websocket read error", "err", err)
 			}
 			return
 		case <-ctx.Done():
@@ -445,10 +495,10 @@ func (s *Server) readMessages(ctx context.Context, conn *websocket.Conn, out cha
 	}
 }
 
-func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, data []byte, switchSubscription func(string) error, defaultGPU string) error {
+func (s *Server) handleClientMessage(outbound *wsOutbound, data []byte, switchSubscription func(string) error, defaultGPU string, logger *slog.Logger) error {
 	var envelope api.ClientMessage
 	if err := json.Unmarshal(data, &envelope); err != nil {
-		s.logger.Debug("invalid client message", "err", err)
+		logger.Debug("invalid client message", "err", err)
 		return nil
 	}
 
@@ -456,38 +506,168 @@ func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, 
 	case "subscribe":
 		var msg api.SubscribeMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
-			return s.sendError(ctx, conn, "invalid subscribe payload")
+			if !s.enqueueError(outbound, "invalid subscribe payload", logger) {
+				return fmt.Errorf("failed to enqueue subscribe error")
+			}
+			return nil
 		}
 		target := msg.GPUId
 		if target == "" {
 			target = defaultGPU
 		}
 		if target == "" {
-			return s.sendError(ctx, conn, "no gpu_id provided and no default available")
+			if !s.enqueueError(outbound, "no gpu_id provided and no default available", logger) {
+				return fmt.Errorf("failed to enqueue gpu missing error")
+			}
+			return nil
 		}
 		if err := switchSubscription(target); err != nil {
-			return s.sendError(ctx, conn, err.Error())
+			if !s.enqueueError(outbound, err.Error(), logger) {
+				return fmt.Errorf("failed to enqueue subscription error")
+			}
+			return nil
 		}
 	case "ping":
-		return s.writeJSON(ctx, conn, api.PongMessage{Type: "pong"})
+		if !s.enqueueMessage(outbound, api.PongMessage{Type: "pong"}, logger) {
+			return fmt.Errorf("failed to enqueue pong response")
+		}
 	default:
-		s.logger.Debug("unknown message type", "type", envelope.Type)
+		logger.Debug("unknown message type", "type", envelope.Type)
 	}
 	return nil
 }
 
-func (s *Server) writeJSON(ctx context.Context, conn *websocket.Conn, payload any) error {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
+func (s *Server) wsWriter(ctx context.Context, conn *websocket.Conn, outbound *wsOutbound, cancel context.CancelFunc, logger *slog.Logger, done chan<- struct{}) {
+	defer close(done)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-outbound.channel():
+			if !ok {
+				return
+			}
+			if err := s.writeRaw(ctx, conn, msg); err != nil {
+				if websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+					logger.Warn("websocket write failed", "err", err)
+				}
+				cancel()
+				return
+			}
+			s.wsSent.Add(1)
+		}
 	}
-	writeCtx, cancel := context.WithTimeout(ctx, s.cfg.WS.WriteTimeout)
-	defer cancel()
+}
+
+func (s *Server) writeRaw(ctx context.Context, conn *websocket.Conn, data []byte) error {
+	writeCtx := ctx
+	var cancel context.CancelFunc
+	if s.cfg.WS.WriteTimeout > 0 {
+		writeCtx, cancel = context.WithTimeout(ctx, s.cfg.WS.WriteTimeout)
+	}
+	if cancel != nil {
+		defer cancel()
+	}
 	return conn.Write(writeCtx, websocket.MessageText, data)
 }
 
-func (s *Server) sendError(ctx context.Context, conn *websocket.Conn, msg string) error {
-	return s.writeJSON(ctx, conn, api.ErrorMessage{Type: "error", Message: msg})
+func (s *Server) enqueueMessage(outbound *wsOutbound, payload any, logger *slog.Logger) bool {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		logger.Error("failed to marshal websocket payload", "err", err)
+		return false
+	}
+	if !outbound.enqueue(data) {
+		logger.Warn("websocket outbound queue unavailable")
+		return false
+	}
+	return true
+}
+
+func (s *Server) enqueueError(outbound *wsOutbound, msg string, logger *slog.Logger) bool {
+	return s.enqueueMessage(outbound, api.ErrorMessage{Type: "error", Message: msg}, logger)
+}
+
+func (s *Server) reserveWS() bool {
+	if s.maxWSClients <= 0 {
+		s.wsActive.Add(1)
+		return true
+	}
+
+	for {
+		current := s.wsActive.Load()
+		if current >= s.maxWSClients {
+			s.wsRejected.Add(1)
+			return false
+		}
+		if s.wsActive.CompareAndSwap(current, current+1) {
+			return true
+		}
+	}
+}
+
+func (s *Server) releaseWS() {
+	s.wsActive.Add(-1)
+}
+
+func (s *Server) registerPrometheus(mux *http.ServeMux) {
+	registry := prometheus.NewRegistry()
+	collectors := []prometheus.Collector{
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: "amdgputop",
+			Subsystem: "ws",
+			Name:      "active_connections",
+			Help:      "Current number of active WebSocket clients.",
+		}, func() float64 {
+			return float64(s.wsActive.Load())
+		}),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "amdgputop",
+			Subsystem: "ws",
+			Name:      "connections_total",
+			Help:      "Total WebSocket connections accepted since start.",
+		}, func() float64 {
+			return float64(s.wsTotal.Load())
+		}),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "amdgputop",
+			Subsystem: "ws",
+			Name:      "rejected_total",
+			Help:      "Total WebSocket connection attempts rejected due to capacity.",
+		}, func() float64 {
+			return float64(s.wsRejected.Load())
+		}),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "amdgputop",
+			Subsystem: "ws",
+			Name:      "messages_sent_total",
+			Help:      "Total WebSocket messages sent to clients.",
+		}, func() float64 {
+			return float64(s.wsSent.Load())
+		}),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "amdgputop",
+			Subsystem: "ws",
+			Name:      "messages_dropped_total",
+			Help:      "Total WebSocket messages dropped due to backpressure.",
+		}, func() float64 {
+			return float64(s.wsDropped.Load())
+		}),
+	}
+
+	for _, collector := range collectors {
+		registry.MustRegister(collector)
+	}
+
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+}
+
+func registerPprof(mux *http.ServeMux) {
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 }
 
 func originPatterns(origins []string) []string {
@@ -540,4 +720,72 @@ type readyResponse struct {
 	GPUs    int    `json:"gpus"`
 	Readers int    `json:"metrics_readers"`
 	Reason  string `json:"reason,omitempty"`
+}
+
+type wsOutbound struct {
+	ch     chan []byte
+	closed atomic.Bool
+	drops  *atomic.Uint64
+}
+
+func newWSOutbound(size int, dropCounter *atomic.Uint64) *wsOutbound {
+	if size <= 0 {
+		size = 1
+	}
+	return &wsOutbound{
+		ch:    make(chan []byte, size),
+		drops: dropCounter,
+	}
+}
+
+func (o *wsOutbound) enqueue(msg []byte) bool {
+	if o.closed.Load() {
+		o.countDrop()
+		return false
+	}
+
+	select {
+	case o.ch <- msg:
+		return true
+	default:
+	}
+
+	droppedOld := false
+	select {
+	case <-o.ch:
+		droppedOld = true
+	default:
+	}
+	if droppedOld {
+		o.countDrop()
+	}
+
+	if o.closed.Load() {
+		o.countDrop()
+		return false
+	}
+
+	select {
+	case o.ch <- msg:
+		return true
+	default:
+		o.countDrop()
+		return false
+	}
+}
+
+func (o *wsOutbound) close() {
+	if o.closed.CompareAndSwap(false, true) {
+		close(o.ch)
+	}
+}
+
+func (o *wsOutbound) channel() <-chan []byte {
+	return o.ch
+}
+
+func (o *wsOutbound) countDrop() {
+	if o.drops != nil {
+		o.drops.Add(1)
+	}
 }

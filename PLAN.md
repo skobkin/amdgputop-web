@@ -371,9 +371,9 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 4 — Robustness & Observability
 
-* [ ] Backpressure/drop policy in WS hub; client caps.
-* [ ] Prometheus (optional, not planned for now) + minimal counters.
-* [ ] Logs: structured (`slog`), per‑request IDs.
+* [x] Backpressure/drop policy in WS hub; client caps.
+* [x] Prometheus (optional, not planned for now) + minimal counters.
+* [x] Logs: structured (`slog`), per‑request IDs.
 * [ ] Graceful shutdown; leak checks (`-race` clean).
 
 ### Phase 5 — Docker & Docs

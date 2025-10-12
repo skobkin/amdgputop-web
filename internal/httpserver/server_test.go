@@ -199,6 +199,35 @@ func TestAPIDocsServed(t *testing.T) {
 	}
 }
 
+func TestPrometheusMetrics(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultTestConfig()
+	cfg.EnablePrometheus = true
+
+	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if !strings.Contains(string(body), "amdgputop_ws_active_connections") {
+		t.Fatalf("metrics response missing ws gauge: %s", string(body))
+	}
+}
+
 func TestAPIGPUs(t *testing.T) {
 	t.Parallel()
 
