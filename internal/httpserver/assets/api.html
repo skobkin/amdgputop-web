@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>amdgpu_top-web API</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 2rem;
+        background: #0e0e0e;
+        color: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+      main {
+        max-width: 42rem;
+        text-align: center;
+      }
+      code {
+        font-size: 0.9rem;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0.3rem 0.5rem;
+        border-radius: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>amdgpu_top-web</h1>
+      <p>Frontend build is not yet available. This placeholder page confirms static asset serving works.</p>
+      <p>API endpoints:</p>
+      <ul>
+        <li><code>/api/gpus</code></li>
+        <li><code>/api/gpus/&lt;gpu_id&gt;/metrics</code></li>
+        <li><code>/api/gpus/&lt;gpu_id&gt;/procs</code></li>
+        <li><code>/healthz</code> and <code>/readyz</code></li>
+        <li><code>/api/version</code></li>
+        <li><code>/ws</code></li>
+      </ul>
+    </main>
+  </body>
+</html>

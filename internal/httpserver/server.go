@@ -55,6 +55,8 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 	mux.HandleFunc("/api/readyz", s.handleReadyz)
 	mux.HandleFunc("/version", s.handleVersion)
 	mux.HandleFunc("/api/version", s.handleVersion)
+	mux.HandleFunc("/api", s.handleAPIDocs)
+	mux.HandleFunc("/api/", s.handleAPIDocs)
 	mux.HandleFunc("/api/gpus", s.handleAPIGPUs)
 	mux.HandleFunc("/api/gpus/", s.handleAPIGPUSubresource)
 	mux.HandleFunc("/ws", s.handleWS)
@@ -131,6 +133,31 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to encode version response", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.URL.Path != "/api" && r.URL.Path != "/api/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, err := embeddedAssets.ReadFile("assets/api.html")
+	if err != nil {
+		s.logger.Error("failed to read api docs asset", "err", err)
+		http.Error(w, "missing api docs", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(data); err != nil {
+		s.logger.Warn("failed to write api docs response", "err", err)
 	}
 }
 

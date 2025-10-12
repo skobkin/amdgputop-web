@@ -169,6 +169,36 @@ func TestStaticIndexServed(t *testing.T) {
 
 }
 
+func TestAPIDocsServed(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultTestConfig()
+	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api")
+	if err != nil {
+		t.Fatalf("GET /api failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	content := string(body)
+	if !strings.Contains(content, "Frontend build is not yet available") {
+		t.Fatalf("api docs placeholder missing")
+	}
+	if !strings.Contains(content, "/api/gpus") {
+		t.Fatalf("api docs missing endpoint list")
+	}
+}
+
 func TestAPIGPUs(t *testing.T) {
 	t.Parallel()
 
