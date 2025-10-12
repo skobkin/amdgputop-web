@@ -354,6 +354,7 @@ docker run --rm -p 8080:8080 \
 * [x] Implement metrics readers (sysfs/hwmon; optional debugfs fallback).
 * [x] Sampler per GPU; cache + broadcast `stats`.
 * [x] `/api/gpus` wired; frontend selector works. _(Frontend selector pending)_
+* [x] Unit tests for discovery & sampler (sysfs/debugfs fixtures).
 
 ### Phase 3 — Process Top (best‑effort)
 
