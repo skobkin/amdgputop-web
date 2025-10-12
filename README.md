@@ -35,13 +35,27 @@ An Alpine-based multi-stage image is defined in `Dockerfile`.
 
 ```bash
 docker build -t amdgputop-web:dev .
+
+VID_GID=$(getent group video | cut -d: -f3)
+RENDER_GID=$(getent group render | cut -d: -f3)
+
 docker run --rm -p 8080:8080 \
   --device=/dev/dri \
   --device=/dev/kfd \
-  --group-add video --group-add render \
+  --group-add "${VID_GID}" \
+  --group-add "${RENDER_GID}" \
   --pid=host \
+  --cap-add SYS_PTRACE \
+  --user root \
   amdgputop-web:dev
 ```
+
+> **Why root + `SYS_PTRACE`?** Reading `/proc/<pid>/fdinfo` for host workloads
+> requires elevated privileges and the `CAP_SYS_PTRACE` capability. Running the
+> container as `root` with `--cap-add SYS_PTRACE` is the simplest way to let the
+> process scanner observe GPU clients outside the container. If you only need
+> device-level metrics, you can omit `--pid=host`, `--user root`, and the extra
+> capability and run with the default non-root user.
 
 Refer to `docs/DOCKER.md` for more detail, including why `--pid=host` is needed
 to observe host processes.
