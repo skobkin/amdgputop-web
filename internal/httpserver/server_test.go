@@ -159,8 +159,12 @@ func TestStaticIndexServed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	if !strings.Contains(string(body), "Frontend build is not yet available") {
-		t.Fatalf("placeholder text missing from response body")
+	content := string(body)
+	if !strings.Contains(content, `<div id="root"></div>`) {
+		t.Fatalf("index missing root mount point")
+	}
+	if !strings.Contains(content, `<script type="module"`) {
+		t.Fatalf("index missing module script tag")
 	}
 
 }
