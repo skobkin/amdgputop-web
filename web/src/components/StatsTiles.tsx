@@ -35,7 +35,7 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
           title="Memory controller busy percentage"
         >
           <div class="metric-card__row">
-            <h3>VRAM</h3>
+            <h3>Memory</h3>
             <span class="metric-value">{formatPercent(metrics.mem_busy_pct, 1)}</span>
           </div>
         </article>
@@ -53,7 +53,7 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
           title="Memory clock frequency"
         >
           <div class="metric-card__row">
-            <h3>Memory</h3>
+            <h3>MemClk</h3>
             <span class="metric-value">{formatMHz(metrics.mclk_mhz)}</span>
           </div>
         </article>

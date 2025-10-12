@@ -17,8 +17,6 @@ interface Props {
   snapshot?: ProcSnapshot;
 }
 
-const MAX_CMD_DISPLAY_LENGTH = 72;
-
 const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
@@ -30,14 +28,9 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
       const vram = proc.vram_bytes ?? 0;
       const gtt = proc.gtt_bytes ?? 0;
       const cmdRaw = (proc.cmd ?? '').trim();
-      const cmdCollapsed =
-        cmdRaw.length > MAX_CMD_DISPLAY_LENGTH
-          ? `${cmdRaw.slice(0, MAX_CMD_DISPLAY_LENGTH - 1)}…`
-          : cmdRaw;
       return {
         ...proc,
         totalBytes: vram + gtt,
-        cmdCollapsed: cmdCollapsed || null,
         cmdTooltip: cmdRaw || null
       };
     });
@@ -113,13 +106,8 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
                   <td>{proc.pid}</td>
                   <td>{proc.user || '—'}</td>
                   <td class="name-cell">
-                    <div class="proc-name">
-                      <strong title={proc.name || undefined}>{proc.name || '—'}</strong>
-                      {proc.cmdCollapsed ? (
-                        <span class="proc-cmd" title={proc.cmdTooltip || undefined}>
-                          {proc.cmdCollapsed}
-                        </span>
-                      ) : null}
+                    <div class="proc-name" title={proc.cmdTooltip || proc.name || undefined}>
+                      <strong>{proc.name || '—'}</strong>
                     </div>
                   </td>
                   <td>{formatBytes(proc.vram_bytes)}</td>

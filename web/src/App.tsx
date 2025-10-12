@@ -302,10 +302,7 @@ const App = () => {
   return (
     <main data-scale={uiScale}>
       <header>
-        <div>
-          <h1 style="margin: 0;">AMD GPU stats</h1>
-          <p style="margin: 0; color: rgba(255,255,255,0.7);">Live AMD GPU telemetry for the web</p>
-        </div>
+        <h1 style="margin: 0;">AMD GPU stats</h1>
         <div class="gpu-picker">
           <label for="gpu-select">GPU</label>
           <GpuSelector
