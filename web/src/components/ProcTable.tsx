@@ -17,6 +17,8 @@ interface Props {
   snapshot?: ProcSnapshot;
 }
 
+const MAX_CMD_DISPLAY_LENGTH = 72;
+
 const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
@@ -27,9 +29,16 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
     const rows = snapshot.processes.map((proc) => {
       const vram = proc.vram_bytes ?? 0;
       const gtt = proc.gtt_bytes ?? 0;
+      const cmdRaw = (proc.cmd ?? '').trim();
+      const cmdCollapsed =
+        cmdRaw.length > MAX_CMD_DISPLAY_LENGTH
+          ? `${cmdRaw.slice(0, MAX_CMD_DISPLAY_LENGTH - 1)}…`
+          : cmdRaw;
       return {
         ...proc,
-        totalBytes: vram + gtt
+        totalBytes: vram + gtt,
+        cmdCollapsed: cmdCollapsed || null,
+        cmdTooltip: cmdRaw || null
       };
     });
 
@@ -73,8 +82,8 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
   };
 
   return (
-    <section style="margin-top: 2rem;">
-      <header style="margin-bottom: 0.75rem;">
+    <section style="margin-top: 1.5rem;">
+      <header style="margin-bottom: 0.5rem;">
         <h2 style="margin: 0;">Processes</h2>
         <small class="muted">
           Last update {formatTimeAgo(snapshot.ts)} · {processes.length} entries
@@ -103,12 +112,14 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
                 <tr key={proc.pid}>
                   <td>{proc.pid}</td>
                   <td>{proc.user || '—'}</td>
-                  <td>
-                    <div style="display:flex; flex-direction:column;">
-                      <strong>{proc.name || '—'}</strong>
-                      <small class="muted" style="white-space: normal; max-width: 420px;">
-                        {proc.cmd || '—'}
-                      </small>
+                  <td class="name-cell">
+                    <div class="proc-name">
+                      <strong title={proc.name || undefined}>{proc.name || '—'}</strong>
+                      {proc.cmdCollapsed ? (
+                        <span class="proc-cmd" title={proc.cmdTooltip || undefined}>
+                          {proc.cmdCollapsed}
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td>{formatBytes(proc.vram_bytes)}</td>

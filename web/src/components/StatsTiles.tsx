@@ -21,36 +21,50 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
   return (
     <>
       <section class="grid stats-grid">
-        <article class="metric-card">
-          <h3>GPU Busy</h3>
-          <span class="metric-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>GPU Busy</h3>
+            <span class="metric-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Memory Busy</h3>
-          <span class="metric-value">{formatPercent(metrics.mem_busy_pct, 1)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Memory Busy</h3>
+            <span class="metric-value">{formatPercent(metrics.mem_busy_pct, 1)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Core Clock</h3>
-          <span class="metric-value">{formatMHz(metrics.sclk_mhz)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Core Clock</h3>
+            <span class="metric-value">{formatMHz(metrics.sclk_mhz)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Memory Clock</h3>
-          <span class="metric-value">{formatMHz(metrics.mclk_mhz)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Memory Clock</h3>
+            <span class="metric-value">{formatMHz(metrics.mclk_mhz)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Temperature</h3>
-          <span class="metric-value">{formatTemperature(metrics.temp_c)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Temperature</h3>
+            <span class="metric-value">{formatTemperature(metrics.temp_c)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Fan Speed</h3>
-          <span class="metric-value">{formatRPM(metrics.fan_rpm)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Fan Speed</h3>
+            <span class="metric-value">{formatRPM(metrics.fan_rpm)}</span>
+          </div>
         </article>
-        <article class="metric-card">
-          <h3>Power Draw</h3>
-          <span class="metric-value">{formatPower(metrics.power_w)}</span>
+        <article class="metric-card metric-card--inline">
+          <div class="metric-card__row">
+            <h3>Power Draw</h3>
+            <span class="metric-value">{formatPower(metrics.power_w)}</span>
+          </div>
         </article>
       </section>
-      <small class="muted">Last update {formatTimeAgo(ts)}</small>
+      <small class="muted stats-updated">Last update {formatTimeAgo(ts)}</small>
     </>
   );
 };
