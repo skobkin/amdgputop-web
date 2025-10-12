@@ -12,6 +12,7 @@ import (
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
+	"github.com/skobkin/amdgputop-web/internal/version"
 	"nhooyr.io/websocket"
 )
 
@@ -45,8 +46,14 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
+	mux.HandleFunc("/api/healthz", s.handleHealthz)
+	mux.HandleFunc("/readyz", s.handleReadyz)
+	mux.HandleFunc("/api/readyz", s.handleReadyz)
+	mux.HandleFunc("/version", s.handleVersion)
+	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/api/gpus", s.handleAPIGPUs)
 	mux.HandleFunc("/ws", s.handleWS)
+	mux.Handle("/", s.staticHandler())
 
 	s.httpServer = &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -82,6 +89,44 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	info := s.readiness()
+
+	statusCode := http.StatusOK
+	if info.Status != "ok" {
+		statusCode = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(info); err != nil {
+		s.logger.Error("failed to encode readyz response", "err", err)
+	}
+}
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	info := version.Current()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(info); err != nil {
+		s.logger.Error("failed to encode version response", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
@@ -343,4 +388,45 @@ func originPatterns(origins []string) []string {
 	dst := make([]string, len(origins))
 	copy(dst, origins)
 	return dst
+}
+
+func (s *Server) readiness() readyResponse {
+	resp := readyResponse{
+		GPUs: len(s.gpus),
+	}
+
+	if len(s.gpus) == 0 {
+		resp.Status = "ok"
+		return resp
+	}
+
+	if s.sampler == nil {
+		resp.Status = "degraded"
+		resp.Reason = "sampler_not_configured"
+		return resp
+	}
+
+	readers := s.sampler.GPUIDs()
+	resp.Readers = len(readers)
+	if len(readers) == 0 {
+		resp.Status = "degraded"
+		resp.Reason = "no_metrics_readers"
+		return resp
+	}
+
+	if s.sampler.Ready() {
+		resp.Status = "ok"
+		return resp
+	}
+
+	resp.Status = "initializing"
+	resp.Reason = "waiting_for_samples"
+	return resp
+}
+
+type readyResponse struct {
+	Status  string `json:"status"`
+	GPUs    int    `json:"gpus"`
+	Readers int    `json:"metrics_readers"`
+	Reason  string `json:"reason,omitempty"`
 }

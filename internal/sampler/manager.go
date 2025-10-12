@@ -122,6 +122,24 @@ func (m *Manager) GPUIDs() []string {
 	return ids
 }
 
+// Ready reports whether all configured samplers have published at least one sample.
+func (m *Manager) Ready() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.readers) == 0 {
+		return true
+	}
+
+	for id := range m.readers {
+		if _, ok := m.latest[id]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (m *Manager) storeSample(sample Sample) {
 	m.mu.Lock()
 	m.latest[sample.GPUId] = sample

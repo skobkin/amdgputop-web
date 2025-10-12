@@ -344,16 +344,16 @@ docker run --rm -p 8080:8080 \
 ### Phase 1 — Backend skeleton (stdlib only)
 
 * [x] `internal/config` (env + defaults).
-* [ ] `internal/httpserver` with `http.ServeMux`, `/healthz`, `/readyz`, `/version`, static.
+* [x] `internal/httpserver` with `http.ServeMux`, `/healthz`, `/readyz`, `/version`, static. _(Handlers implemented; add integration/unit coverage next)_
 * [x] WS endpoint `/ws` (hello, subscribe, ping/pong).
-* [ ] Embed placeholder SPA; end‑to‑end echo test.
+* [ ] Embed placeholder SPA; end‑to‑end echo test. _(Placeholder page served; WS echo test pending)_
 
 ### Phase 2 — GPU enumeration & metrics
 
 * [x] DRM card discovery via sysfs; render node detection.
 * [x] Implement metrics readers (sysfs/hwmon; optional debugfs fallback).
 * [x] Sampler per GPU; cache + broadcast `stats`.
-* [ ] `/api/gpus` wired; frontend selector works.
+* [x] `/api/gpus` wired; frontend selector works. _(Frontend selector pending)_
 
 ### Phase 3 — Process Top (best‑effort)
 

@@ -9,9 +9,22 @@ import (
 
 	"github.com/skobkin/amdgputop-web/internal/app"
 	"github.com/skobkin/amdgputop-web/internal/config"
+	"github.com/skobkin/amdgputop-web/internal/version"
+)
+
+var (
+	buildVersion = "dev"
+	buildCommit  = ""
+	buildTime    = ""
 )
 
 func main() {
+	version.Set(version.Info{
+		Version:   buildVersion,
+		Commit:    buildCommit,
+		BuildTime: buildTime,
+	})
+
 	cfg, err := config.Load()
 	if err != nil {
 		handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})
