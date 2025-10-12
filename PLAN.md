@@ -345,14 +345,14 @@ docker run --rm -p 8080:8080 \
 
 * [x] `internal/config` (env + defaults).
 * [ ] `internal/httpserver` with `http.ServeMux`, `/healthz`, `/readyz`, `/version`, static.
-* [ ] WS endpoint `/ws` (hello, subscribe, ping/pong).
+* [x] WS endpoint `/ws` (hello, subscribe, ping/pong).
 * [ ] Embed placeholder SPA; end‑to‑end echo test.
 
 ### Phase 2 — GPU enumeration & metrics
 
 * [x] DRM card discovery via sysfs; render node detection.
 * [x] Implement metrics readers (sysfs/hwmon; optional debugfs fallback).
-* [ ] Sampler per GPU; cache + broadcast `stats`.
+* [x] Sampler per GPU; cache + broadcast `stats`.
 * [ ] `/api/gpus` wired; frontend selector works.
 
 ### Phase 3 — Process Top (best‑effort)

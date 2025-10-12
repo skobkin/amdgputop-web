@@ -11,5 +11,7 @@ Host: Unknown (container), Kernel: Unknown, Go: go1.25.1, GPU: n/a
     - Result: `count=0` GPUs discovered (expected on builder without AMD GPU)
 - Implemented metrics reader scaffolding (sysfs/hwmon/debugfs fallbacks). Observations:
   - No AMD devices available in builder to validate numerical output.
+- Added sampler manager and WebSocket streaming pipeline. Observations:
+  - Unable to validate live telemetry due to absence of AMD GPU; verified framework via automated tests only.
 Issues:
 - None

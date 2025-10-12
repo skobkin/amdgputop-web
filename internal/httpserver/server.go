@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
+	"github.com/skobkin/amdgputop-web/internal/sampler"
 	"nhooyr.io/websocket"
 )
 
@@ -23,14 +25,22 @@ type Server struct {
 	logger     *slog.Logger
 	httpServer *http.Server
 	gpus       []gpu.Info
+	gpuIndex   map[string]gpu.Info
+	sampler    *sampler.Manager
 }
 
 // New assembles a Server with its handlers.
-func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info) *Server {
+func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager *sampler.Manager) *Server {
 	s := &Server{
-		cfg:    cfg,
-		logger: logger,
-		gpus:   gpus,
+		cfg:      cfg,
+		logger:   logger,
+		gpus:     gpus,
+		gpuIndex: make(map[string]gpu.Info, len(gpus)),
+		sampler:  samplerManager,
+	}
+
+	for _, info := range gpus {
+		s.gpuIndex[info.ID] = info
 	}
 
 	mux := http.NewServeMux()
@@ -116,19 +126,102 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	payload, err := json.Marshal(hello)
-	if err != nil {
-		s.logger.Error("failed to marshal hello message", "err", err)
-		conn.Close(websocket.StatusInternalError, "internal error")
+	if err := s.writeJSON(r.Context(), conn, hello); err != nil {
+		s.logger.Warn("failed to send hello", "err", err)
 		return
 	}
 
-	writeCtx, cancel := context.WithTimeout(r.Context(), s.cfg.WS.WriteTimeout)
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	if err := conn.Write(writeCtx, websocket.MessageText, payload); err != nil {
-		s.logger.Warn("websocket write failed", "err", err)
-		return
+	messageCh := make(chan []byte, 8)
+	readErrCh := make(chan error, 1)
+	go s.readMessages(ctx, conn, messageCh, readErrCh)
+
+	defaultGPU := s.defaultGPU()
+
+	var (
+		subCh       <-chan sampler.Sample
+		unsubscribe func()
+		currentGPU  string
+	)
+
+	switchSubscription := func(target string) error {
+		if target == "" {
+			return fmt.Errorf("empty gpu id")
+		}
+		if _, ok := s.gpuIndex[target]; !ok {
+			return fmt.Errorf("unknown gpu %q", target)
+		}
+		if s.sampler == nil {
+			return fmt.Errorf("sampler unavailable")
+		}
+		if target == currentGPU {
+			return nil
+		}
+		if unsubscribe != nil {
+			unsubscribe()
+			unsubscribe = nil
+			subCh = nil
+		}
+		ch, cancel, err := s.sampler.Subscribe(target)
+		if err != nil {
+			return err
+		}
+		subCh = ch
+		unsubscribe = cancel
+		currentGPU = target
+		s.logger.Info("ws subscribed", "gpu_id", target)
+		return nil
+	}
+
+	defer func() {
+		if unsubscribe != nil {
+			unsubscribe()
+		}
+	}()
+
+	if defaultGPU != "" {
+		if err := switchSubscription(defaultGPU); err != nil {
+			s.logger.Warn("failed to subscribe default gpu", "gpu_id", defaultGPU, "err", err)
+			_ = s.sendError(ctx, conn, fmt.Sprintf("failed to subscribe default gpu: %v", err))
+		}
+	} else if len(s.gpus) == 0 {
+		_ = s.sendError(ctx, conn, "no GPUs detected")
+	}
+
+	for {
+		select {
+		case sample, ok := <-subCh:
+			if !ok {
+				subCh = nil
+				currentGPU = ""
+				continue
+			}
+			if err := s.writeJSON(ctx, conn, statsMessage{Type: "stats", Sample: sample}); err != nil {
+				s.logger.Warn("failed to write stats message", "err", err)
+				return
+			}
+		case data, ok := <-messageCh:
+			if !ok {
+				messageCh = nil
+				continue
+			}
+			if err := s.handleClientMessage(ctx, conn, data, switchSubscription, defaultGPU); err != nil {
+				if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
+					return
+				}
+				s.logger.Warn("client message handling error", "err", err)
+				return
+			}
+		case err := <-readErrCh:
+			if err != nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+				s.logger.Warn("websocket read error", "err", err)
+			}
+			return
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -137,6 +230,108 @@ type helloMessage struct {
 	IntervalMS int             `json:"interval_ms"`
 	GPUs       []gpu.Info      `json:"gpus"`
 	Features   map[string]bool `json:"features"`
+}
+
+type statsMessage struct {
+	Type string `json:"type"`
+	sampler.Sample
+}
+
+type errorMessage struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type clientMessage struct {
+	Type string `json:"type"`
+}
+
+type subscribeMessage struct {
+	Type  string `json:"type"`
+	GPUId string `json:"gpu_id"`
+}
+
+type pongMessage struct {
+	Type string `json:"type"`
+}
+
+func (s *Server) defaultGPU() string {
+	if s.cfg.DefaultGPU != "" && s.cfg.DefaultGPU != "auto" {
+		if _, ok := s.gpuIndex[s.cfg.DefaultGPU]; ok {
+			return s.cfg.DefaultGPU
+		}
+		s.logger.Warn("configured default gpu not found", "gpu_id", s.cfg.DefaultGPU)
+	}
+	if len(s.gpus) > 0 {
+		return s.gpus[0].ID
+	}
+	return ""
+}
+
+func (s *Server) readMessages(ctx context.Context, conn *websocket.Conn, out chan<- []byte, errCh chan<- error) {
+	defer close(out)
+	for {
+		readCtx, cancel := context.WithTimeout(ctx, s.cfg.WS.ReadTimeout)
+		msgType, data, err := conn.Read(readCtx)
+		cancel()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if msgType != websocket.MessageText {
+			continue
+		}
+		select {
+		case out <- data:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, data []byte, switchSubscription func(string) error, defaultGPU string) error {
+	var envelope clientMessage
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		s.logger.Debug("invalid client message", "err", err)
+		return nil
+	}
+
+	switch envelope.Type {
+	case "subscribe":
+		var msg subscribeMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return s.sendError(ctx, conn, "invalid subscribe payload")
+		}
+		target := msg.GPUId
+		if target == "" {
+			target = defaultGPU
+		}
+		if target == "" {
+			return s.sendError(ctx, conn, "no gpu_id provided and no default available")
+		}
+		if err := switchSubscription(target); err != nil {
+			return s.sendError(ctx, conn, err.Error())
+		}
+	case "ping":
+		return s.writeJSON(ctx, conn, pongMessage{Type: "pong"})
+	default:
+		s.logger.Debug("unknown message type", "type", envelope.Type)
+	}
+	return nil
+}
+
+func (s *Server) writeJSON(ctx context.Context, conn *websocket.Conn, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, s.cfg.WS.WriteTimeout)
+	defer cancel()
+	return conn.Write(writeCtx, websocket.MessageText, data)
+}
+
+func (s *Server) sendError(ctx context.Context, conn *websocket.Conn, msg string) error {
+	return s.writeJSON(ctx, conn, errorMessage{Type: "error", Message: msg})
 }
 
 func originPatterns(origins []string) []string {
