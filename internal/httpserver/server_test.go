@@ -231,6 +231,101 @@ func TestAPIGPUs(t *testing.T) {
 
 }
 
+func TestAPIGPUMetricsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultTestConfig()
+	gpus := []gpu.Info{{ID: "card0"}}
+
+	_, tsNoSampler := newTestHTTPServer(t, cfg, gpus, nil, nil)
+	defer tsNoSampler.Close()
+
+	resp, err := http.Get(tsNoSampler.URL + "/api/gpus/card0/metrics")
+	if err != nil {
+		t.Fatalf("GET metrics without sampler failed: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when sampler missing, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "metrics sampler unavailable") {
+		t.Fatalf("expected error body about sampler unavailable, got %q", string(body))
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	manager, err := sampler.NewManager(10*time.Millisecond, map[string]*sampler.Reader{}, logger)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	_, tsNoSample := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	defer tsNoSample.Close()
+
+	resp2, err := http.Get(tsNoSample.URL + "/api/gpus/card0/metrics")
+	if err != nil {
+		t.Fatalf("GET metrics without sample failed: %v", err)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when no sample available, got %d", resp2.StatusCode)
+	}
+	if !strings.Contains(string(body2), "no sample available") {
+		t.Fatalf("expected error body about missing sample, got %q", string(body2))
+	}
+}
+
+func TestWebSocketSubscribeUnknownGPU(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	manager, err := sampler.NewManager(5*time.Millisecond, map[string]*sampler.Reader{}, logger)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	cfg := defaultTestConfig()
+	cfg.DefaultGPU = "auto"
+
+	_, ts := newTestHTTPServer(t, cfg, nil, manager, nil)
+	defer ts.Close()
+
+	wsURL := toWebsocketURL(ts.URL + "/ws")
+	cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if _, err := expectHelloMessage(cctx, conn); err != nil {
+		t.Fatalf("expect hello: %v", err)
+	}
+
+	expectErrorMessage(t, cctx, conn, "no GPUs detected")
+
+	subscribeMsg := map[string]string{
+		"type":   "subscribe",
+		"gpu_id": "card0",
+	}
+	data, err := json.Marshal(subscribeMsg)
+	if err != nil {
+		t.Fatalf("marshal subscribe: %v", err)
+	}
+
+	writeCtx, writeCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := conn.Write(writeCtx, websocket.MessageText, data); err != nil {
+		writeCancel()
+		t.Fatalf("write subscribe: %v", err)
+	}
+	writeCancel()
+
+	expectErrorMessage(t, cctx, conn, "unknown gpu")
+}
+
 func TestAPIGPUMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -741,6 +836,34 @@ func expectHelloMessage(ctx context.Context, conn *websocket.Conn) (map[string]a
 		return nil, fmt.Errorf("expected hello message, got %v", payload["type"])
 	}
 	return payload, nil
+}
+
+func expectErrorMessage(t *testing.T, baseCtx context.Context, conn *websocket.Conn, wantSubstring string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(baseCtx, time.Second)
+	defer cancel()
+
+	msgType, data, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("read error message: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Fatalf("expected text message, got %v", msgType)
+	}
+
+	var payload struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decode error payload: %v", err)
+	}
+	if payload.Type != "error" {
+		t.Fatalf("expected error type, got %q", payload.Type)
+	}
+	if wantSubstring != "" && !strings.Contains(payload.Message, wantSubstring) {
+		t.Fatalf("expected error message to contain %q, got %q", wantSubstring, payload.Message)
+	}
 }
 
 func waitFor(t *testing.T, timeout time.Duration, condition func() bool) {
