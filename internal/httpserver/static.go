@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 )
 
 //go:embed assets/*
@@ -19,33 +20,41 @@ func (s *Server) staticHandler() http.Handler {
 	fileServer := http.FileServer(http.FS(sub))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serveIndex := func() {
+			data, err := fs.ReadFile(sub, "index.html")
+			if err != nil {
+				http.Error(w, "missing index asset", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if _, err := w.Write(data); err != nil {
+				// log write failure if desired
+			}
+		}
+
 		if r.URL.Path == "/" || r.URL.Path == "" {
-			r2 := new(http.Request)
-			*r2 = *r
-			r2.URL = cloneURL(r.URL)
-			r2.URL.Path = "/index.html"
-			fileServer.ServeHTTP(w, r2)
+			serveIndex()
 			return
 		}
 
 		// Serve static files for exact matches; fallback to index.html otherwise.
-		normalized := path.Clean(r.URL.Path)
-		if normalized == "/" {
-			normalized = "/index.html"
-		}
-
-		f, err := sub.Open(normalized[1:])
-		if err == nil {
-			_ = f.Close()
-			fileServer.ServeHTTP(w, r)
+		normalized := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		if normalized == "" {
+			serveIndex()
 			return
 		}
 
-		r2 := new(http.Request)
-		*r2 = *r
-		r2.URL = cloneURL(r.URL)
-		r2.URL.Path = "/index.html"
-		fileServer.ServeHTTP(w, r2)
+		if _, err := fs.Stat(sub, normalized); err == nil {
+			// Reconstruct request to match filesystem expectations.
+			r2 := new(http.Request)
+			*r2 = *r
+			r2.URL = cloneURL(r.URL)
+			r2.URL.Path = "/" + normalized
+			fileServer.ServeHTTP(w, r2)
+			return
+		}
+
+		serveIndex()
 	})
 }
 

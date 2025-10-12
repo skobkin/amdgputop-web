@@ -344,9 +344,9 @@ docker run --rm -p 8080:8080 \
 ### Phase 1 — Backend skeleton (stdlib only)
 
 * [x] `internal/config` (env + defaults).
-* [x] `internal/httpserver` with `http.ServeMux`, `/healthz`, `/readyz`, `/version`, static. _(Handlers implemented; add integration/unit coverage next)_
+* [x] `internal/httpserver` with `http.ServeMux`, `/healthz`, `/readyz`, `/version`, static. _(Handlers implemented; integration tests cover health/ready/version/static/WS)_
 * [x] WS endpoint `/ws` (hello, subscribe, ping/pong).
-* [ ] Embed placeholder SPA; end‑to‑end echo test. _(Placeholder page served; WS echo test pending)_
+* [x] Embed placeholder SPA; end‑to‑end echo test. _(Placeholder page served; Go test covers WS hello/stats flow)_
 
 ### Phase 2 — GPU enumeration & metrics
 
