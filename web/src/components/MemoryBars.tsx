@@ -45,7 +45,10 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
 
   return (
     <section class="grid usage-grid">
-      <article class="metric-card metric-card--compact">
+      <article
+        class="metric-card metric-card--compact"
+        title="Current GPU load averaged over the sampling interval"
+      >
         <div class="metric-card__row">
           <h3>GPU Load</h3>
           <span class="metric-inline-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
@@ -67,7 +70,15 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
             : formatBytes(row.used);
 
         return (
-          <article key={row.key} class="metric-card metric-card--compact">
+          <article
+            key={row.key}
+            class="metric-card metric-card--compact"
+            title={
+              row.key === 'vram'
+                ? 'Video memory usage (bytes used out of total)'
+                : 'Graphics translation table usage (bytes used out of total)'
+            }
+          >
             <div class="metric-card__row">
               <h3>{row.label}</h3>
               <span class="metric-inline-value">{usedText}</span>

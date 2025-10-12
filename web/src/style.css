@@ -21,8 +21,8 @@ main {
   --metric-card-gap: 0.4rem;
   --metric-title-size: 0.85rem;
   --metric-row-title-size: 0.8rem;
-  --metric-value-size: 1.25rem;
-  --metric-inline-size: 0.95rem;
+  --metric-value-size: var(--metric-title-size);
+  --metric-inline-size: var(--metric-row-title-size);
   --progress-height: 0.65rem;
   --progress-thin-height: 0.45rem;
   --table-padding-y: 0.6rem;
@@ -44,8 +44,6 @@ main[data-scale='comfortable'] {
   --metric-card-gap: 0.36rem;
   --metric-title-size: 0.82rem;
   --metric-row-title-size: 0.78rem;
-  --metric-value-size: 1.2rem;
-  --metric-inline-size: 0.92rem;
   --progress-height: 0.6rem;
   --progress-thin-height: 0.4rem;
   --table-padding-y: 0.55rem;
@@ -64,8 +62,6 @@ main[data-scale='medium'] {
   --metric-card-gap: 0.32rem;
   --metric-title-size: 0.76rem;
   --metric-row-title-size: 0.72rem;
-  --metric-value-size: 1.1rem;
-  --metric-inline-size: 0.88rem;
   --progress-height: 0.5rem;
   --progress-thin-height: 0.34rem;
   --table-padding-y: 0.48rem;
@@ -84,8 +80,6 @@ main[data-scale='compact'] {
   --metric-card-gap: 0.28rem;
   --metric-title-size: 0.72rem;
   --metric-row-title-size: 0.68rem;
-  --metric-value-size: 1.02rem;
-  --metric-inline-size: 0.82rem;
   --progress-height: 0.46rem;
   --progress-thin-height: 0.3rem;
   --table-padding-y: 0.44rem;
@@ -104,8 +98,6 @@ main[data-scale='small'] {
   --metric-card-gap: 0.25rem;
   --metric-title-size: 0.68rem;
   --metric-row-title-size: 0.64rem;
-  --metric-value-size: 0.96rem;
-  --metric-inline-size: 0.78rem;
   --progress-height: 0.42rem;
   --progress-thin-height: 0.28rem;
   --table-padding-y: 0.4rem;
@@ -124,8 +116,6 @@ main[data-scale='smallest'] {
   --metric-card-gap: 0.22rem;
   --metric-title-size: 0.64rem;
   --metric-row-title-size: 0.6rem;
-  --metric-value-size: 0.9rem;
-  --metric-inline-size: 0.72rem;
   --progress-height: 0.38rem;
   --progress-thin-height: 0.25rem;
   --table-padding-y: 0.36rem;
@@ -154,6 +144,19 @@ header {
 .grid {
   display: grid;
   gap: calc(0.75rem * var(--spacing-scale));
+}
+
+.gpu-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gpu-picker label {
+  font-size: var(--metric-title-size);
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
 }
 
 .stats-grid {

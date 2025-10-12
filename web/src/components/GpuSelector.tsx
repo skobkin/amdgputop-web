@@ -5,32 +5,30 @@ interface Props {
   gpus: GPUInfo[];
   selectedGpuId: string | null;
   onChange: (id: string) => void;
+  id?: string;
 }
 
-const GpuSelector: FunctionalComponent<Props> = ({ gpus, selectedGpuId, onChange }) => {
+const GpuSelector: FunctionalComponent<Props> = ({ gpus, selectedGpuId, onChange, id }) => {
   if (gpus.length === 0) {
     return (
-      <div class="empty-state">
-        <strong>No GPUs detected</strong>
-        <p>Ensure the amdgpu driver is loaded and this host exposes /dev/dri.</p>
-      </div>
+      <select id={id} disabled>
+        <option>No GPUs detected</option>
+      </select>
     );
   }
 
   return (
-    <label>
-      <span>GPU</span>
-      <select
-        value={selectedGpuId ?? ''}
-        onChange={(event) => onChange((event.currentTarget as HTMLSelectElement).value)}
-      >
-        {gpus.map((gpu) => (
-          <option key={gpu.id} value={gpu.id}>
-            {gpu.name || gpu.id} ({gpu.id})
-          </option>
-        ))}
-      </select>
-    </label>
+    <select
+      id={id}
+      value={selectedGpuId ?? ''}
+      onChange={(event) => onChange((event.currentTarget as HTMLSelectElement).value)}
+    >
+      {gpus.map((gpu) => (
+        <option key={gpu.id} value={gpu.id}>
+          {gpu.name || gpu.id} ({gpu.id})
+        </option>
+      ))}
+    </select>
   );
 };
 
