@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
+
+	"github.com/jaypipes/pcidb"
 )
 
 func TestDiscover(t *testing.T) {
@@ -121,5 +124,56 @@ func writeFile(t *testing.T, path, contents string) {
 	}
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func TestDiscoverUsesPCIDatabase(t *testing.T) {
+	t.Parallel()
+
+	db, err := pcidb.New()
+	if err != nil {
+		t.Skipf("pcidb unavailable: %v", err)
+	}
+
+	const (
+		vendorID = "1002"
+		deviceID = "73BF"
+	)
+
+	productKey := strings.ToUpper(vendorID + deviceID)
+	product, ok := db.Products[productKey]
+	if !ok || product == nil || product.Name == "" {
+		t.Skipf("pcidb missing product for %s", productKey)
+	}
+
+	root := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	deviceDir := filepath.Join(root, "class", "drm", "card0", "device")
+	renderDir := filepath.Join(deviceDir, "drm", "renderD128")
+	if err := os.MkdirAll(renderDir, 0o755); err != nil {
+		t.Fatalf("mkdir render dir: %v", err)
+	}
+
+	writeFile(t, filepath.Join(deviceDir, "uevent"), "PCI_SLOT_NAME=0000:00:01.0\nPCI_ID=1002:73BF\nPCI_SUBSYS_ID=1849:5201\n")
+	writeFile(t, filepath.Join(deviceDir, "vendor"), "0x1002\n")
+	writeFile(t, filepath.Join(deviceDir, "device"), "0x73bf\n")
+	writeFile(t, filepath.Join(deviceDir, "subsystem_vendor"), "0x1849\n")
+	writeFile(t, filepath.Join(deviceDir, "subsystem_device"), "0x5201\n")
+
+	infos, err := Discover(root, logger)
+	if err != nil {
+		t.Fatalf("Discover returned error: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("expected 1 GPU, got %d", len(infos))
+	}
+
+	name := infos[0].Name
+	if name == "" {
+		t.Fatalf("expected non-empty name from pci ids")
+	}
+	if name != product.Name {
+		t.Fatalf("expected name %q, got %q", product.Name, name)
 	}
 }

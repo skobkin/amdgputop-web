@@ -77,17 +77,28 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 	ueventPath := filepath.Join(devicePath, "uevent")
 
 	var (
-		pciSlot string
-		pciID   string
-		name    string
+		pciSlot   string
+		pciID     string
+		name      string
+		subVendor string
+		subDevice string
 	)
 
 	if data, err := os.ReadFile(ueventPath); err == nil {
-		pciSlot = parseKeyValue(string(data), "PCI_SLOT_NAME")
-		pciID = parseKeyValue(string(data), "PCI_ID")
-		name = parseKeyValue(string(data), "PCI_ID_NAME")
+		text := string(data)
+		pciSlot = parseKeyValue(text, "PCI_SLOT_NAME")
+		pciID = parseKeyValue(text, "PCI_ID")
+		subsys := parseKeyValue(text, "PCI_SUBSYS_ID")
+		if subsys != "" {
+			parts := strings.SplitN(subsys, ":", 2)
+			if len(parts) == 2 {
+				subVendor = parts[0]
+				subDevice = parts[1]
+			}
+		}
+		name = parseKeyValue(text, "PCI_ID_NAME")
 		if name == "" {
-			name = parseKeyValue(string(data), "DRIVER")
+			name = parseKeyValue(text, "DRIVER")
 		}
 	}
 
@@ -101,6 +112,19 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 
 	if name == "" {
 		name, _ = readTrim(filepath.Join(devicePath, "product_name"))
+	}
+
+	if subVendor == "" {
+		subVendor, _ = readTrim(filepath.Join(devicePath, "subsystem_vendor"))
+	}
+	if subDevice == "" {
+		subDevice, _ = readTrim(filepath.Join(devicePath, "subsystem_device"))
+	}
+
+	vendorID, deviceID := splitPCIIdentifier(pciID)
+	resolved := lookupGPUName(vendorID, deviceID, subVendor, subDevice)
+	if shouldUseResolvedName(name, resolved) {
+		name = resolved
 	}
 
 	renderNode := findRenderNode(devicePath)
