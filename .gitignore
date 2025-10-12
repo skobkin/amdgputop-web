@@ -236,3 +236,12 @@ go.work.sum
 # env file
 .env
 
+### Project-specific additions
+.DS_Store
+.vscode/
+/bin/
+/dist/
+/tmp/
+*.swp
+*.swo
+coverage.out

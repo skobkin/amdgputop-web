@@ -495,14 +495,14 @@ func scanPid(pid int, limits Limits) (ProcUsage, bool) {
 
 ## 11) Agent Execution Checklist (host‑first)
 
-1. **Git init**
+1. **Git init** (done)
 
     * `git init && git config commit.gpgSign false`
     * First commit: scaffolding.
-2. **Backend skeleton** (serve `/hello` via WS, `/healthz`).
+2. **Backend skeleton** (serve `/hello` via WS, `/healthz`). (done)
 
     * Commit.
-3. **GPU discovery** (host test: list GPUs).
+3. **GPU discovery** (host test: list GPUs). (done)
 
     * Commit with sample output in `DEVLOG.md`.
 4. **Metrics sampler** (busy/temp/power/memory).
