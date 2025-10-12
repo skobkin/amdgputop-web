@@ -3,12 +3,13 @@ import GpuSelector from '@/components/GpuSelector';
 import StatsTiles from '@/components/StatsTiles';
 import MemoryBars from '@/components/MemoryBars';
 import ProcTable from '@/components/ProcTable';
-import { useAppStore } from './store';
+import { useAppStore, type UIScale } from './store';
 import type { ServerMessage, StatsSample, ProcSnapshot } from './types';
 import { formatTimeAgo } from './lib/format';
 
 const WS_RECONNECT_DELAY_MS = 2000;
 const WS_HEARTBEAT_INTERVAL_MS = 10000;
+const UI_SCALE_OPTIONS: UIScale[] = ['small', 'medium', 'large'];
 
 const App = () => {
   const gpus = useAppStore((state) => state.gpus);
@@ -31,6 +32,8 @@ const App = () => {
   const clearGpuData = useAppStore((state) => state.clearGpuData);
   const setVersion = useAppStore((state) => state.setVersion);
   const setError = useAppStore((state) => state.setError);
+  const uiScale = useAppStore((state) => state.uiScale);
+  const setUiScale = useAppStore((state) => state.setUiScale);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -297,7 +300,7 @@ const App = () => {
   }, [procsByGpu, selectedGpuId]);
 
   return (
-    <main>
+    <main data-scale={uiScale}>
       <header>
         <div>
           <h1 style="margin: 0;">amdgpu_top-web</h1>
@@ -346,6 +349,22 @@ const App = () => {
             {version.commit ? `(${version.commit.substring(0, 7)})` : ''}
           </span>
         ) : null}
+        <div class="scale-picker">
+          <label for="ui-scale">UI Scale</label>
+          <select
+            id="ui-scale"
+            value={uiScale}
+            onChange={(event) =>
+              setUiScale((event.currentTarget as HTMLSelectElement).value as UIScale)
+            }
+          >
+            {UI_SCALE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option.charAt(0).toUpperCase() + option.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
         <a href="https://github.com/skobkin/amdgputop-web" target="_blank" rel="noreferrer">
           GitHub →
         </a>

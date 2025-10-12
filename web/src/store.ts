@@ -9,6 +9,31 @@ import type {
 
 type FeatureMap = Record<string, boolean>;
 
+export type UIScale = 'small' | 'medium' | 'large';
+
+const UI_SCALE_STORAGE_KEY = 'amdgputop-web:ui-scale';
+
+function isValidScale(value: string | null): value is UIScale {
+  return value === 'small' || value === 'medium' || value === 'large';
+}
+
+function readInitialUiScale(): UIScale {
+  if (typeof window === 'undefined') {
+    return 'large';
+  }
+  try {
+    const stored = window.localStorage.getItem(UI_SCALE_STORAGE_KEY);
+    if (isValidScale(stored)) {
+      return stored;
+    }
+  } catch {
+    // Ignore storage errors and use fallback.
+  }
+  return 'large';
+}
+
+const initialUiScale = readInitialUiScale();
+
 interface AppState {
   gpus: GPUInfo[];
   selectedGpuId: string | null;
@@ -20,6 +45,7 @@ interface AppState {
   lastUpdatedTs: number | null;
   version: VersionInfo | null;
   error: string | null;
+  uiScale: UIScale;
   setGPUs: (gpus: GPUInfo[]) => void;
   setSelectedGpuId: (id: string | null) => void;
   setConnection: (status: ConnectionStatus) => void;
@@ -30,6 +56,7 @@ interface AppState {
   clearGpuData: (gpuId: string) => void;
   setVersion: (info: VersionInfo) => void;
   setError: (message: string | null) => void;
+  setUiScale: (scale: UIScale) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -43,6 +70,7 @@ export const useAppStore = create<AppState>((set) => ({
   lastUpdatedTs: null,
   version: null,
   error: null,
+  uiScale: initialUiScale,
   setGPUs: (gpus) =>
     set((state) => {
       let selected = state.selectedGpuId;
@@ -74,5 +102,19 @@ export const useAppStore = create<AppState>((set) => ({
       return { statsByGpu: nextStats, procsByGpu: nextProcs };
     }),
   setVersion: (info) => set({ version: info }),
-  setError: (message) => set({ error: message })
+  setError: (message) => set({ error: message }),
+  setUiScale: (scale) =>
+    set((state) => {
+      if (state.uiScale === scale) {
+        return {};
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(UI_SCALE_STORAGE_KEY, scale);
+        } catch {
+          // Ignore storage errors.
+        }
+      }
+      return { uiScale: scale };
+    })
 }));

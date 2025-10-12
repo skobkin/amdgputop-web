@@ -14,16 +14,73 @@ body {
 }
 
 main {
+  --spacing-scale: 1;
+  --card-min-width: 180px;
+  --usage-card-min-width: 220px;
+  --metric-card-padding: 0.75rem;
+  --metric-card-gap: 0.4rem;
+  --metric-title-size: 0.85rem;
+  --metric-row-title-size: 0.8rem;
+  --metric-value-size: 1.25rem;
+  --metric-inline-size: 0.95rem;
+  --progress-height: 0.65rem;
+  --progress-thin-height: 0.45rem;
+  --table-padding-y: 0.6rem;
+  --table-padding-x: 0.65rem;
+  --proc-name-size: 0.95rem;
+  --proc-cmd-size: 0.8rem;
+  --footer-font-size: 0.85rem;
+  --table-max-height: 420px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.25rem;
+  padding: calc(1.25rem * var(--spacing-scale));
+}
+
+main[data-scale='medium'] {
+  --spacing-scale: 0.85;
+  --card-min-width: 160px;
+  --usage-card-min-width: 200px;
+  --metric-card-padding: 0.65rem;
+  --metric-card-gap: 0.35rem;
+  --metric-title-size: 0.8rem;
+  --metric-row-title-size: 0.75rem;
+  --metric-value-size: 1.15rem;
+  --metric-inline-size: 0.9rem;
+  --progress-height: 0.55rem;
+  --progress-thin-height: 0.38rem;
+  --table-padding-y: 0.5rem;
+  --table-padding-x: 0.55rem;
+  --proc-name-size: 0.9rem;
+  --proc-cmd-size: 0.75rem;
+  --footer-font-size: 0.8rem;
+  --table-max-height: 360px;
+}
+
+main[data-scale='small'] {
+  --spacing-scale: 0.7;
+  --card-min-width: 150px;
+  --usage-card-min-width: 180px;
+  --metric-card-padding: 0.55rem;
+  --metric-card-gap: 0.3rem;
+  --metric-title-size: 0.75rem;
+  --metric-row-title-size: 0.7rem;
+  --metric-value-size: 1.05rem;
+  --metric-inline-size: 0.85rem;
+  --progress-height: 0.5rem;
+  --progress-thin-height: 0.32rem;
+  --table-padding-y: 0.45rem;
+  --table-padding-x: 0.5rem;
+  --proc-name-size: 0.85rem;
+  --proc-cmd-size: 0.7rem;
+  --footer-font-size: 0.75rem;
+  --table-max-height: 320px;
 }
 
 header {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  gap: calc(0.75rem * var(--spacing-scale));
+  margin-bottom: calc(1.25rem * var(--spacing-scale));
 }
 
 @media (min-width: 768px) {
@@ -36,26 +93,26 @@ header {
 
 .grid {
   display: grid;
-  gap: 0.75rem;
+  gap: calc(0.75rem * var(--spacing-scale));
 }
 
 .stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--card-min-width), 1fr));
 }
 
 .metric-card {
-  padding: 0.75rem;
+  padding: var(--metric-card-padding);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: var(--pico-border-radius);
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--metric-card-gap);
 }
 
 .metric-card h3 {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--metric-title-size);
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -67,12 +124,12 @@ header {
 }
 
 .metric-card__row h3 {
-  font-size: 0.8rem;
+  font-size: var(--metric-row-title-size);
 }
 
 .metric-value,
 .metric-inline-value {
-  font-size: 1.25rem;
+  font-size: var(--metric-value-size);
   font-weight: 600;
 }
 
@@ -81,28 +138,28 @@ header {
 }
 
 .metric-card--compact .metric-inline-value {
-  font-size: 0.95rem;
+  font-size: var(--metric-inline-size);
   color: rgba(255, 255, 255, 0.85);
 }
 
 .stats-updated {
   display: block;
-  margin-top: 0.5rem;
+  margin-top: calc(0.5rem * var(--spacing-scale));
 }
 
 .usage-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--usage-card-min-width), 1fr));
 }
 
 .progress {
-  height: 0.65rem;
+  height: var(--progress-height);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
 .progress--thin {
-  height: 0.45rem;
+  height: var(--progress-thin-height);
 }
 
 .progress span {
@@ -113,7 +170,7 @@ header {
 
 .table-responsive {
   overflow-x: auto;
-  max-height: 420px;
+  max-height: var(--table-max-height);
   overflow-y: auto;
 }
 
@@ -131,14 +188,14 @@ header {
 
 .proc-table th,
 .proc-table td {
-  padding: 0.6rem 0.65rem;
+  padding: var(--table-padding-y) var(--table-padding-x);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   white-space: nowrap;
 }
 
 .proc-table th {
   text-align: left;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--spacing-scale));
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -160,7 +217,7 @@ header {
 }
 
 .proc-name strong {
-  font-size: 0.95rem;
+  font-size: var(--proc-name-size);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -168,7 +225,7 @@ header {
 }
 
 .proc-cmd {
-  font-size: 0.8rem;
+  font-size: var(--proc-cmd-size);
   color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   overflow: hidden;
@@ -187,17 +244,40 @@ header {
 }
 
 footer {
-  margin-top: 2rem;
+  margin-top: calc(2rem * var(--spacing-scale));
   color: rgba(255, 255, 255, 0.65);
-  font-size: 0.85rem;
+  font-size: var(--footer-font-size);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.5rem;
+  gap: calc(0.5rem * var(--spacing-scale)) calc(1.5rem * var(--spacing-scale));
 }
 
 footer a {
   color: rgba(255, 255, 255, 0.85);
+}
+
+.scale-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--footer-font-size);
+  white-space: nowrap;
+}
+
+.scale-picker select {
+  font: inherit;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+}
+
+.scale-picker select:focus {
+  outline: none;
+  border-color: var(--pico-primary);
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.25);
 }
 
 .status-banner {
