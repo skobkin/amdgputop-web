@@ -153,15 +153,6 @@ header {
   flex-wrap: wrap;
 }
 
-.gpu-picker label {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  font-size: var(--metric-title-size);
-  color: rgba(255, 255, 255, 0.75);
-  white-space: nowrap;
-}
-
 .stats-grid {
   grid-template-columns: repeat(auto-fit, minmax(var(--card-min-width), 1fr));
 }

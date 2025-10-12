@@ -304,7 +304,6 @@ const App = () => {
       <header>
         <h1 style="margin: 0;">AMD GPU stats</h1>
         <div class="gpu-picker">
-          <label for="gpu-select">GPU</label>
           <GpuSelector
             gpus={gpus}
             selectedGpuId={selectedGpuId}
