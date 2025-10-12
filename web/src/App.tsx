@@ -8,6 +8,7 @@ import type { ServerMessage, StatsSample, ProcSnapshot } from './types';
 import { formatTimeAgo } from './lib/format';
 
 const WS_RECONNECT_DELAY_MS = 2000;
+const WS_HEARTBEAT_INTERVAL_MS = 10000;
 
 const App = () => {
   const gpus = useAppStore((state) => state.gpus);
@@ -33,6 +34,12 @@ const App = () => {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const heartbeatTimerRef = useRef<number | null>(null);
+  const selectedGpuIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedGpuIdRef.current = selectedGpuId;
+  }, [selectedGpuId]);
 
   // Fetch GPU list via REST so UI can render before WS hello arrives.
   useEffect(() => {
@@ -46,6 +53,7 @@ const App = () => {
         const payload = await res.json();
         if (!cancelled) {
           setGPUs(payload);
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -89,6 +97,13 @@ const App = () => {
   useEffect(() => {
     let stop = false;
 
+    const clearHeartbeat = () => {
+      if (heartbeatTimerRef.current != null) {
+        window.clearInterval(heartbeatTimerRef.current);
+        heartbeatTimerRef.current = null;
+      }
+    };
+
     const scheduleReconnect = () => {
       if (stop) {
         return;
@@ -107,6 +122,7 @@ const App = () => {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
+      clearHeartbeat();
 
       try {
         setConnection('connecting');
@@ -121,14 +137,20 @@ const App = () => {
 
         socket.onopen = () => {
           setConnection('open');
-          if (selectedGpuId) {
+          const gpuId = selectedGpuIdRef.current;
+          if (gpuId) {
             socket.send(
               JSON.stringify({
                 type: 'subscribe',
-                gpu_id: selectedGpuId
+                gpu_id: gpuId
               })
             );
           }
+          heartbeatTimerRef.current = window.setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: 'ping' }));
+            }
+          }, WS_HEARTBEAT_INTERVAL_MS);
         };
 
         socket.onmessage = (event: MessageEvent<string>) => {
@@ -164,6 +186,7 @@ const App = () => {
         };
 
         socket.onclose = () => {
+          clearHeartbeat();
           setConnection('closed');
           scheduleReconnect();
         };
@@ -178,14 +201,16 @@ const App = () => {
 
     return () => {
       stop = true;
+      clearHeartbeat();
       if (reconnectTimerRef.current != null) {
         window.clearTimeout(reconnectTimerRef.current);
       }
       reconnectTimerRef.current = null;
-      wsRef.current?.close();
+      const socket = wsRef.current;
       wsRef.current = null;
+      socket?.close();
     };
-  }, [selectedGpuId, setConnection, setError, setFeatures, setGPUs, setSampleInterval, updateProcs, updateStats]);
+  }, [setConnection, setError, setFeatures, setGPUs, setSampleInterval, updateProcs, updateStats]);
 
   // Resubscribe whenever selection changes.
   useEffect(() => {
