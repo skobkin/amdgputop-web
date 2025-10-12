@@ -9,7 +9,7 @@ import { formatTimeAgo } from './lib/format';
 
 const WS_RECONNECT_DELAY_MS = 2000;
 const WS_HEARTBEAT_INTERVAL_MS = 10000;
-const UI_SCALE_OPTIONS: UIScale[] = ['small', 'medium', 'large'];
+const UI_SCALE_OPTIONS: UIScale[] = ['smallest', 'small', 'compact', 'medium', 'comfortable', 'large'];
 
 const App = () => {
   const gpus = useAppStore((state) => state.gpus);

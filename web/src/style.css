@@ -36,44 +36,104 @@ main {
   padding: calc(1.25rem * var(--spacing-scale));
 }
 
+main[data-scale='comfortable'] {
+  --spacing-scale: 0.95;
+  --card-min-width: 170px;
+  --usage-card-min-width: 210px;
+  --metric-card-padding: 0.7rem;
+  --metric-card-gap: 0.36rem;
+  --metric-title-size: 0.82rem;
+  --metric-row-title-size: 0.78rem;
+  --metric-value-size: 1.2rem;
+  --metric-inline-size: 0.92rem;
+  --progress-height: 0.6rem;
+  --progress-thin-height: 0.4rem;
+  --table-padding-y: 0.55rem;
+  --table-padding-x: 0.6rem;
+  --proc-name-size: 0.93rem;
+  --proc-cmd-size: 0.78rem;
+  --footer-font-size: 0.82rem;
+  --table-max-height: 400px;
+}
+
 main[data-scale='medium'] {
-  --spacing-scale: 0.85;
-  --card-min-width: 160px;
-  --usage-card-min-width: 200px;
-  --metric-card-padding: 0.65rem;
-  --metric-card-gap: 0.35rem;
-  --metric-title-size: 0.8rem;
-  --metric-row-title-size: 0.75rem;
-  --metric-value-size: 1.15rem;
-  --metric-inline-size: 0.9rem;
-  --progress-height: 0.55rem;
-  --progress-thin-height: 0.38rem;
-  --table-padding-y: 0.5rem;
-  --table-padding-x: 0.55rem;
-  --proc-name-size: 0.9rem;
-  --proc-cmd-size: 0.75rem;
-  --footer-font-size: 0.8rem;
-  --table-max-height: 360px;
+  --spacing-scale: 0.82;
+  --card-min-width: 155px;
+  --usage-card-min-width: 195px;
+  --metric-card-padding: 0.6rem;
+  --metric-card-gap: 0.32rem;
+  --metric-title-size: 0.76rem;
+  --metric-row-title-size: 0.72rem;
+  --metric-value-size: 1.1rem;
+  --metric-inline-size: 0.88rem;
+  --progress-height: 0.5rem;
+  --progress-thin-height: 0.34rem;
+  --table-padding-y: 0.48rem;
+  --table-padding-x: 0.52rem;
+  --proc-name-size: 0.88rem;
+  --proc-cmd-size: 0.72rem;
+  --footer-font-size: 0.78rem;
+  --table-max-height: 340px;
+}
+
+main[data-scale='compact'] {
+  --spacing-scale: 0.74;
+  --card-min-width: 145px;
+  --usage-card-min-width: 185px;
+  --metric-card-padding: 0.55rem;
+  --metric-card-gap: 0.28rem;
+  --metric-title-size: 0.72rem;
+  --metric-row-title-size: 0.68rem;
+  --metric-value-size: 1.02rem;
+  --metric-inline-size: 0.82rem;
+  --progress-height: 0.46rem;
+  --progress-thin-height: 0.3rem;
+  --table-padding-y: 0.44rem;
+  --table-padding-x: 0.48rem;
+  --proc-name-size: 0.84rem;
+  --proc-cmd-size: 0.68rem;
+  --footer-font-size: 0.74rem;
+  --table-max-height: 320px;
 }
 
 main[data-scale='small'] {
-  --spacing-scale: 0.7;
-  --card-min-width: 150px;
-  --usage-card-min-width: 180px;
-  --metric-card-padding: 0.55rem;
-  --metric-card-gap: 0.3rem;
-  --metric-title-size: 0.75rem;
-  --metric-row-title-size: 0.7rem;
-  --metric-value-size: 1.05rem;
-  --metric-inline-size: 0.85rem;
-  --progress-height: 0.5rem;
-  --progress-thin-height: 0.32rem;
-  --table-padding-y: 0.45rem;
-  --table-padding-x: 0.5rem;
-  --proc-name-size: 0.85rem;
-  --proc-cmd-size: 0.7rem;
-  --footer-font-size: 0.75rem;
-  --table-max-height: 320px;
+  --spacing-scale: 0.68;
+  --card-min-width: 135px;
+  --usage-card-min-width: 175px;
+  --metric-card-padding: 0.5rem;
+  --metric-card-gap: 0.25rem;
+  --metric-title-size: 0.68rem;
+  --metric-row-title-size: 0.64rem;
+  --metric-value-size: 0.96rem;
+  --metric-inline-size: 0.78rem;
+  --progress-height: 0.42rem;
+  --progress-thin-height: 0.28rem;
+  --table-padding-y: 0.4rem;
+  --table-padding-x: 0.44rem;
+  --proc-name-size: 0.8rem;
+  --proc-cmd-size: 0.64rem;
+  --footer-font-size: 0.7rem;
+  --table-max-height: 300px;
+}
+
+main[data-scale='smallest'] {
+  --spacing-scale: 0.6;
+  --card-min-width: 125px;
+  --usage-card-min-width: 165px;
+  --metric-card-padding: 0.45rem;
+  --metric-card-gap: 0.22rem;
+  --metric-title-size: 0.64rem;
+  --metric-row-title-size: 0.6rem;
+  --metric-value-size: 0.9rem;
+  --metric-inline-size: 0.72rem;
+  --progress-height: 0.38rem;
+  --progress-thin-height: 0.25rem;
+  --table-padding-y: 0.36rem;
+  --table-padding-x: 0.4rem;
+  --proc-name-size: 0.76rem;
+  --proc-cmd-size: 0.6rem;
+  --footer-font-size: 0.66rem;
+  --table-max-height: 280px;
 }
 
 header {

@@ -9,12 +9,19 @@ import type {
 
 type FeatureMap = Record<string, boolean>;
 
-export type UIScale = 'small' | 'medium' | 'large';
+export type UIScale = 'smallest' | 'small' | 'compact' | 'medium' | 'comfortable' | 'large';
 
 const UI_SCALE_STORAGE_KEY = 'amdgputop-web:ui-scale';
 
 function isValidScale(value: string | null): value is UIScale {
-  return value === 'small' || value === 'medium' || value === 'large';
+  return (
+    value === 'smallest' ||
+    value === 'small' ||
+    value === 'compact' ||
+    value === 'medium' ||
+    value === 'comfortable' ||
+    value === 'large'
+  );
 }
 
 function readInitialUiScale(): UIScale {
