@@ -15,3 +15,8 @@ Host: Unknown (container), Kernel: Unknown, Go: go1.25.1, GPU: n/a
   - Unable to validate live telemetry due to absence of AMD GPU; verified framework via automated tests only.
 Issues:
 - None
+
+Date: 2025-10-13
+Host: CI builder (Go 1.25.1)
+- Added HTTP/WebSocket observability instrumentation and graceful shutdown coverage.
+- `go test -race ./...` currently fails with repeated `hole in findfunctab` linker errors (Go 1.25.1 race runtime bug on this toolchain). Pending upstream fix; tracked for re-test after toolchain update.

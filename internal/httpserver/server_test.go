@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -258,6 +259,71 @@ func TestAPIGPUs(t *testing.T) {
 		t.Fatalf("unexpected gpu payload %+v", payload)
 	}
 
+}
+
+func TestServerGracefulShutdown(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultTestConfig()
+	cfg.ListenAddr = freeLoopbackAddress(t)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := New(cfg, logger, nil, nil, nil)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start()
+	}()
+
+	waitFor(t, 5*time.Second, func() bool {
+		conn, err := net.DialTimeout("tcp", cfg.ListenAddr, 100*time.Millisecond)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	})
+
+	wsURL := "ws://" + cfg.ListenAddr + "/ws"
+	cctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if _, err := expectHelloMessage(cctx, conn); err != nil {
+		t.Fatalf("expect hello: %v", err)
+	}
+
+	msgCtx, msgCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer msgCancel()
+	if _, data, err := conn.Read(msgCtx); err == nil {
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("decode initial message: %v", err)
+		}
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		t.Fatalf("shutdown error: %v", err)
+	}
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("server start returned error: %v", err)
+	}
+
+	readCtx, readCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer readCancel()
+
+	if _, _, err := conn.Read(readCtx); err == nil {
+		t.Fatalf("expected websocket read error after shutdown")
+	}
 }
 
 func TestAPIGPUMetricsUnavailable(t *testing.T) {
@@ -794,6 +860,19 @@ func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, sampler
 	ts := httptest.NewServer(srv.httpServer.Handler)
 	t.Cleanup(ts.Close)
 	return srv, ts
+}
+
+func freeLoopbackAddress(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := l.Addr().String()
+	if err := l.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+	return addr
 }
 
 func assertReadyz(t *testing.T, url string, expectedStatus int, expected string, reason string) {

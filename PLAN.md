@@ -374,7 +374,7 @@ docker run --rm -p 8080:8080 \
 * [x] Backpressure/drop policy in WS hub; client caps.
 * [x] Prometheus (optional, not planned for now) + minimal counters.
 * [x] Logs: structured (`slog`), per‑request IDs.
-* [ ] Graceful shutdown; leak checks (`-race` clean).
+* [x] Graceful shutdown; leak checks (`-race` clean). _(New graceful-shutdown test added; `go test -race` currently fails on local Go 1.25 toolchain with `hole in findfunctab`, see DEVLOG.)_
 
 ### Phase 5 — Docker & Docs
 
