@@ -109,9 +109,12 @@ const App = () => {
         return;
       }
       if (reconnectTimerRef.current != null) {
-        window.clearTimeout(reconnectTimerRef.current);
+        return;
       }
-      reconnectTimerRef.current = window.setTimeout(connect, WS_RECONNECT_DELAY_MS);
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connect();
+      }, WS_RECONNECT_DELAY_MS);
     };
 
     const connect = () => {
@@ -123,6 +126,12 @@ const App = () => {
         reconnectTimerRef.current = null;
       }
       clearHeartbeat();
+
+      const existing = wsRef.current;
+      if (existing && existing.readyState !== WebSocket.CLOSED && existing.readyState !== WebSocket.CLOSING) {
+        // Already have an active connection; no need to open another.
+        return;
+      }
 
       try {
         setConnection('connecting');
@@ -146,6 +155,7 @@ const App = () => {
               })
             );
           }
+          socket.send(JSON.stringify({ type: 'ping' }));
           heartbeatTimerRef.current = window.setInterval(() => {
             if (socket.readyState === WebSocket.OPEN) {
               socket.send(JSON.stringify({ type: 'ping' }));
@@ -187,6 +197,9 @@ const App = () => {
 
         socket.onclose = () => {
           clearHeartbeat();
+          if (wsRef.current === socket) {
+            wsRef.current = null;
+          }
           setConnection('closed');
           scheduleReconnect();
         };
@@ -208,7 +221,7 @@ const App = () => {
       reconnectTimerRef.current = null;
       const socket = wsRef.current;
       wsRef.current = null;
-      socket?.close();
+      socket?.close(1000, 'shutdown');
     };
   }, [setConnection, setError, setFeatures, setGPUs, setSampleInterval, updateProcs, updateStats]);
 

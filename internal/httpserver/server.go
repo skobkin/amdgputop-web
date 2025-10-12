@@ -456,10 +456,19 @@ func (s *Server) defaultGPU() string {
 func (s *Server) readMessages(ctx context.Context, conn *websocket.Conn, out chan<- []byte, errCh chan<- error) {
 	defer close(out)
 	for {
-		readCtx, cancel := context.WithTimeout(ctx, s.cfg.WS.ReadTimeout)
+		readCtx := ctx
+		var cancel context.CancelFunc
+		if s.cfg.WS.ReadTimeout > 0 {
+			readCtx, cancel = context.WithTimeout(ctx, s.cfg.WS.ReadTimeout)
+		}
 		msgType, data, err := conn.Read(readCtx)
-		cancel()
+		if cancel != nil {
+			cancel()
+		}
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				continue
+			}
 			errCh <- err
 			return
 		}
