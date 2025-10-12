@@ -44,9 +44,6 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 	var infos []Info
 	for _, entry := range entries {
 		name := entry.Name()
-		if !entry.IsDir() {
-			continue
-		}
 		if !strings.HasPrefix(name, "card") {
 			continue
 		}
@@ -54,6 +51,10 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 			continue
 		}
 		if !allDigits(name[4:]) {
+			continue
+		}
+
+		if !entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
 			continue
 		}
 

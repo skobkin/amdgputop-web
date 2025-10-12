@@ -195,6 +195,70 @@ func TestAPIGPUs(t *testing.T) {
 
 }
 
+func TestAPIGPUMetrics(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	sysfsRoot := t.TempDir()
+	debugRoot := t.TempDir()
+	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "9\n")
+
+	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
+	if err != nil {
+		t.Fatalf("NewReader error: %v", err)
+	}
+
+	manager, err := sampler.NewManager(5*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	if err != nil {
+		t.Fatalf("NewManager error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = manager.Run(ctx) }()
+
+	waitFor(t, 2*time.Second, manager.Ready)
+
+	cfg := defaultTestConfig()
+	gpus := []gpu.Info{{ID: "card0"}}
+
+	_, ts := newTestHTTPServer(t, cfg, gpus, manager)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/gpus/card0/metrics")
+	if err != nil {
+		t.Fatalf("GET metrics failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var sample sampler.Sample
+	if err := json.NewDecoder(resp.Body).Decode(&sample); err != nil {
+		t.Fatalf("decode metrics: %v", err)
+	}
+
+	if sample.GPUId != "card0" {
+		t.Fatalf("unexpected gpu id %q", sample.GPUId)
+	}
+	if sample.Metrics.GPUBusyPct == nil {
+		t.Fatalf("expected gpu_busy_pct in metrics")
+	}
+
+	resp2, err := http.Get(ts.URL + "/api/gpus/unknown/metrics")
+	if err != nil {
+		t.Fatalf("GET unknown metrics failed: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown gpu, got %d", resp2.StatusCode)
+	}
+}
+
 func TestWebSocketHelloAndStats(t *testing.T) {
 	t.Parallel()
 

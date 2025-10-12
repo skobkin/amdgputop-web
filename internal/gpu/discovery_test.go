@@ -3,6 +3,7 @@ package gpu
 import (
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -72,5 +73,53 @@ func TestDiscoverMissingDRMClass(t *testing.T) {
 
 	if len(infos) != 0 {
 		t.Fatalf("expected 0 GPUs, got %d", len(infos))
+	}
+}
+
+func TestDiscoverFollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	classPath := filepath.Join(root, "class", "drm")
+	if err := os.MkdirAll(classPath, 0o755); err != nil {
+		t.Fatalf("mkdir class: %v", err)
+	}
+
+	target := filepath.Join(root, "devices", "pci0000:00", "0000:00:01.0", "drm", "card0")
+	deviceDir := filepath.Join(target, "device")
+	if err := os.MkdirAll(filepath.Join(deviceDir, "drm"), 0o755); err != nil {
+		t.Fatalf("mkdir device: %v", err)
+	}
+
+	writeFile(t, filepath.Join(deviceDir, "uevent"), "PCI_SLOT_NAME=0000:00:01.0\nPCI_ID=1002:73df\n")
+	writeFile(t, filepath.Join(deviceDir, "vendor"), "0x1002\n")
+	writeFile(t, filepath.Join(deviceDir, "device"), "0x73df\n")
+	if err := os.MkdirAll(filepath.Join(deviceDir, "drm", "renderD128"), 0o755); err != nil {
+		t.Fatalf("mkdir render node: %v", err)
+	}
+
+	linkPath := filepath.Join(classPath, "card0")
+	if err := os.Symlink(target, linkPath); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	infos, err := Discover(root, logger)
+	if err != nil {
+		t.Fatalf("Discover returned error: %v", err)
+	}
+	if len(infos) != 1 || infos[0].ID != "card0" {
+		t.Fatalf("expected symlinked gpu, got %+v", infos)
+	}
+}
+
+func writeFile(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }

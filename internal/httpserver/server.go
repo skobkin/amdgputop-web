@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/skobkin/amdgputop-web/internal/config"
@@ -52,6 +53,7 @@ func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager
 	mux.HandleFunc("/version", s.handleVersion)
 	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/api/gpus", s.handleAPIGPUs)
+	mux.HandleFunc("/api/gpus/", s.handleAPIGPUMetrics)
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.Handle("/", s.staticHandler())
 
@@ -139,6 +141,50 @@ func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(s.gpus); err != nil {
 		s.logger.Error("failed to encode gpu list", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) handleAPIGPUMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	const prefix = "/api/gpus/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		http.NotFound(w, r)
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, prefix)
+	segments := strings.Split(rest, "/")
+	if len(segments) != 2 || segments[0] == "" || segments[1] != "metrics" {
+		http.NotFound(w, r)
+		return
+	}
+
+	gpuID := segments[0]
+	if _, ok := s.gpuIndex[gpuID]; !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	if s.sampler == nil {
+		http.Error(w, "metrics sampler unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	sample, ok := s.sampler.Latest(gpuID)
+	if !ok {
+		http.Error(w, "no sample available", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(sample); err != nil {
+		s.logger.Error("failed to encode gpu metrics", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

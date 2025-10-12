@@ -355,6 +355,7 @@ docker run --rm -p 8080:8080 \
 * [x] Sampler per GPU; cache + broadcast `stats`.
 * [x] `/api/gpus` wired; frontend selector works. _(Frontend selector pending)_
 * [x] Unit tests for discovery & sampler (sysfs/debugfs fixtures).
+* [x] `/api/gpus/{id}/metrics` REST endpoint for direct polling.
 
 ### Phase 3 — Process Top (best‑effort)
 
