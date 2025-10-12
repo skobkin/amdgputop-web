@@ -27,8 +27,7 @@ Example run command on a host with one GPU:
 
 ```bash
 docker run --rm -p 8080:8080 \
-  --device=/dev/dri/card0 \
-  --device=/dev/dri/renderD128 \
+  --device=/dev/dri
   --device=/dev/kfd \
   --group-add video \
   --group-add render \
