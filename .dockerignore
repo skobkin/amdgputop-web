@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# Node artifacts
+node_modules
+web/node_modules
+web/dist
+
+# Go build cache / binaries
+bin
+dist
+*.out
+
+# Editor / OS clutter
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log

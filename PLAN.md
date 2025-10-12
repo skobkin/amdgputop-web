@@ -378,8 +378,8 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 5 — Docker & Docs
 
-* [ ] Multi‑stage Dockerfile; non‑root runtime.
-* [ ] Doc device mounts; **note** process top requires `--pid=host` to see host PIDs.
+* [x] Multi‑stage Dockerfile; non‑root runtime.
+* [x] Doc device mounts; **note** process top requires `--pid=host` to see host PIDs.
 * [ ] Troubleshooting guide; permissions matrix.
 
 ### Phase 6 — Polish
