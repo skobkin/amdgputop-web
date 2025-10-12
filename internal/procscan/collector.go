@@ -1,0 +1,308 @@
+package procscan
+
+import (
+	"errors"
+	"io"
+	"log/slog"
+	"os"
+	"os/user"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+type rawProcess struct {
+	pid         int
+	uid         int
+	user        string
+	name        string
+	command     string
+	renderNode  string
+	vramBytes   uint64
+	gttBytes    uint64
+	hasMemory   bool
+	engineTotal uint64
+	hasEngine   bool
+}
+
+type gpuCollection struct {
+	processes []rawProcess
+	hasMemory bool
+	hasEngine bool
+}
+
+type collector struct {
+	procRoot  string
+	maxPIDs   int
+	maxFDs    int
+	lookup    *gpuLookup
+	logger    *slog.Logger
+	userCache map[int]string
+}
+
+func newCollector(procRoot string, maxPIDs, maxFDs int, lookup *gpuLookup, logger *slog.Logger) *collector {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return &collector{
+		procRoot:  procRoot,
+		maxPIDs:   maxPIDs,
+		maxFDs:    maxFDs,
+		lookup:    lookup,
+		logger:    logger,
+		userCache: make(map[int]string),
+	}
+}
+
+func (c *collector) collect() (map[string]gpuCollection, error) {
+	entries, err := os.ReadDir(c.procRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make(map[string]gpuCollection)
+	var scanned int
+
+	for _, entry := range entries {
+		if c.maxPIDs > 0 && scanned >= c.maxPIDs {
+			break
+		}
+		if !entry.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil || pid <= 0 {
+			continue
+		}
+
+		procPath := filepath.Join(c.procRoot, entry.Name())
+		procs := c.scanProcess(pid, procPath)
+		if len(procs) == 0 {
+			continue
+		}
+
+		for gpuID, procList := range procs {
+			col := results[gpuID]
+			col.processes = append(col.processes, procList...)
+			for _, raw := range procList {
+				if raw.hasMemory {
+					col.hasMemory = true
+				}
+				if raw.hasEngine {
+					col.hasEngine = true
+				}
+			}
+			results[gpuID] = col
+		}
+
+		scanned++
+	}
+
+	return results, nil
+}
+
+func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProcess {
+	comm, err := readTrimmed(filepath.Join(procPath, "comm"))
+	if err != nil {
+		return nil
+	}
+
+	cmdline, err := os.ReadFile(filepath.Join(procPath, "cmdline"))
+	if err != nil {
+		cmdline = nil
+	}
+	command := formatCmdline(cmdline)
+
+	uid, err := readUID(filepath.Join(procPath, "status"))
+	if err != nil {
+		return nil
+	}
+
+	userName := c.lookupUser(uid)
+
+	fdDir := filepath.Join(procPath, "fd")
+	fdEntries, err := os.ReadDir(fdDir)
+	if err != nil {
+		return nil
+	}
+
+	result := make(map[string]*rawProcess)
+	fdCount := 0
+
+	for _, fdEntry := range fdEntries {
+		if c.maxFDs > 0 && fdCount >= c.maxFDs {
+			break
+		}
+		fdCount++
+
+		fdName := fdEntry.Name()
+		fdPath := filepath.Join(fdDir, fdName)
+		target, err := os.Readlink(fdPath)
+		if err != nil {
+			continue
+		}
+		if strings.HasSuffix(target, " (deleted)") {
+			target = strings.TrimSuffix(target, " (deleted)")
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Clean(filepath.Join(fdDir, target))
+		} else {
+			target = filepath.Clean(target)
+		}
+
+		entry, ok := c.lookup.match(target)
+		if !ok {
+			continue
+		}
+
+		fdinfoPath := filepath.Join(procPath, "fdinfo", fdName)
+		data, err := os.ReadFile(fdinfoPath)
+		if err != nil {
+			continue
+		}
+		metrics := parseFDInfo(data)
+
+		raw := result[entry.gpuID]
+		if raw == nil {
+			raw = &rawProcess{
+				pid:        pid,
+				uid:        uid,
+				user:       userName,
+				name:       comm,
+				command:    command,
+				renderNode: entry.base,
+			}
+			result[entry.gpuID] = raw
+		}
+
+		if metrics.HasMemory {
+			raw.vramBytes += metrics.VRAMBytes
+			raw.gttBytes += metrics.GTTBytes
+			raw.hasMemory = true
+		}
+		if metrics.HasEngine {
+			raw.engineTotal += metrics.EngineTotal
+			raw.hasEngine = true
+		}
+
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	out := make(map[string][]rawProcess, len(result))
+	for gpuID, raw := range result {
+		out[gpuID] = append(out[gpuID], *raw)
+	}
+	return out
+}
+
+func (c *collector) lookupUser(uid int) string {
+	if name, ok := c.userCache[uid]; ok {
+		return name
+	}
+	name := strconv.Itoa(uid)
+	if u, err := user.LookupId(strconv.Itoa(uid)); err == nil {
+		if u.Username != "" {
+			name = u.Username
+		}
+	}
+	c.userCache[uid] = name
+	return name
+}
+
+type gpuEntry struct {
+	gpuID string
+	path  string
+	base  string
+}
+
+type gpuLookup struct {
+	byPath map[string]gpuEntry
+	byBase map[string]gpuEntry
+}
+
+func newGPULookup(gpus []string, renderNodes map[string]string) *gpuLookup {
+	byPath := make(map[string]gpuEntry)
+	byBase := make(map[string]gpuEntry)
+
+	for _, gpuID := range gpus {
+		path := renderNodes[gpuID]
+		if path == "" {
+			continue
+		}
+		base := filepath.Base(path)
+		entry := gpuEntry{
+			gpuID: gpuID,
+			path:  path,
+			base:  base,
+		}
+		byPath[path] = entry
+		byBase[base] = entry
+	}
+
+	return &gpuLookup{
+		byPath: byPath,
+		byBase: byBase,
+	}
+}
+
+func (l *gpuLookup) match(target string) (gpuEntry, bool) {
+	if entry, ok := l.byPath[target]; ok {
+		return entry, true
+	}
+	if entry, ok := l.byBase[filepath.Base(target)]; ok {
+		return entry, true
+	}
+	return gpuEntry{}, false
+}
+
+func readTrimmed(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func readUID(statusPath string) (int, error) {
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		return 0, err
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "Uid:") {
+			continue
+		}
+		fields := strings.Fields(line[len("Uid:"):])
+		if len(fields) == 0 {
+			continue
+		}
+		uid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			return 0, err
+		}
+		return uid, nil
+	}
+	return 0, errors.New("uid not found")
+}
+
+func formatCmdline(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	parts := strings.Split(string(data), "\x00")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	cmd := strings.Join(out, " ")
+	if len(cmd) > 256 {
+		return cmd[:256]
+	}
+	return cmd
+}

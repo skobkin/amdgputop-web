@@ -12,6 +12,7 @@ import (
 
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
+	"github.com/skobkin/amdgputop-web/internal/procscan"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
 	"github.com/skobkin/amdgputop-web/internal/version"
 	"nhooyr.io/websocket"
@@ -29,16 +30,18 @@ type Server struct {
 	gpus       []gpu.Info
 	gpuIndex   map[string]gpu.Info
 	sampler    *sampler.Manager
+	proc       *procscan.Manager
 }
 
 // New assembles a Server with its handlers.
-func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager *sampler.Manager) *Server {
+func New(cfg config.Config, logger *slog.Logger, gpus []gpu.Info, samplerManager *sampler.Manager, procManager *procscan.Manager) *Server {
 	s := &Server{
 		cfg:      cfg,
 		logger:   logger,
 		gpus:     gpus,
 		gpuIndex: make(map[string]gpu.Info, len(gpus)),
 		sampler:  samplerManager,
+		proc:     procManager,
 	}
 
 	for _, info := range gpus {
@@ -213,7 +216,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		IntervalMS: int(s.cfg.SampleInterval / time.Millisecond),
 		GPUs:       s.gpus,
 		Features: map[string]bool{
-			"procs": s.cfg.Proc.Enable,
+			"procs": s.proc != nil,
 		},
 	}
 
@@ -232,9 +235,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	defaultGPU := s.defaultGPU()
 
 	var (
-		subCh       <-chan sampler.Sample
-		unsubscribe func()
-		currentGPU  string
+		subCh           <-chan sampler.Sample
+		unsubscribe     func()
+		procCh          <-chan procscan.Snapshot
+		procUnsubscribe func()
+		currentGPU      string
 	)
 
 	switchSubscription := func(target string) error {
@@ -255,12 +260,26 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			unsubscribe = nil
 			subCh = nil
 		}
+		if procUnsubscribe != nil {
+			procUnsubscribe()
+			procUnsubscribe = nil
+			procCh = nil
+		}
 		ch, cancel, err := s.sampler.Subscribe(target)
 		if err != nil {
 			return err
 		}
 		subCh = ch
 		unsubscribe = cancel
+		if s.proc != nil {
+			procStream, procCancel, err := s.proc.Subscribe(target)
+			if err != nil {
+				s.logger.Warn("failed to subscribe proc scanner", "gpu_id", target, "err", err)
+			} else {
+				procCh = procStream
+				procUnsubscribe = procCancel
+			}
+		}
 		currentGPU = target
 		s.logger.Info("ws subscribed", "gpu_id", target)
 		return nil
@@ -269,6 +288,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if unsubscribe != nil {
 			unsubscribe()
+		}
+		if procUnsubscribe != nil {
+			procUnsubscribe()
 		}
 	}()
 
@@ -291,6 +313,15 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := s.writeJSON(ctx, conn, statsMessage{Type: "stats", Sample: sample}); err != nil {
 				s.logger.Warn("failed to write stats message", "err", err)
+				return
+			}
+		case snapshot, ok := <-procCh:
+			if !ok {
+				procCh = nil
+				continue
+			}
+			if err := s.writeJSON(ctx, conn, procsMessage{Type: "procs", Snapshot: snapshot}); err != nil {
+				s.logger.Warn("failed to write procs message", "err", err)
 				return
 			}
 		case data, ok := <-messageCh:
@@ -326,6 +357,11 @@ type helloMessage struct {
 type statsMessage struct {
 	Type string `json:"type"`
 	sampler.Sample
+}
+
+type procsMessage struct {
+	Type string `json:"type"`
+	procscan.Snapshot
 }
 
 type errorMessage struct {

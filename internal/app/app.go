@@ -11,6 +11,7 @@ import (
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/httpserver"
+	"github.com/skobkin/amdgputop-web/internal/procscan"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
 )
 
@@ -46,6 +47,18 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		return fmt.Errorf("init sampler manager: %w", err)
 	}
 
+	var (
+		procManager *procscan.Manager
+	)
+
+	if cfg.Proc.Enable {
+		procLogger := baseLogger.With("component", "procscan")
+		procManager, err = procscan.NewManager(cfg.Proc, cfg.ProcRoot, gpus, procLogger)
+		if err != nil {
+			return fmt.Errorf("init proc scanner: %w", err)
+		}
+	}
+
 	samplerCtx, samplerCancel := context.WithCancel(ctx)
 	defer samplerCancel()
 
@@ -54,7 +67,22 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		samplerErrCh <- samplerManager.Run(samplerCtx)
 	}()
 
-	srv := httpserver.New(cfg, baseLogger.With("component", "http"), gpus, samplerManager)
+	var (
+		procCtx    context.Context
+		procCancel context.CancelFunc
+		procErrCh  chan error
+	)
+
+	if procManager != nil {
+		procCtx, procCancel = context.WithCancel(ctx)
+		procErrCh = make(chan error, 1)
+		go func() {
+			procErrCh <- procManager.Run(procCtx)
+		}()
+		defer procCancel()
+	}
+
+	srv := httpserver.New(cfg, baseLogger.With("component", "http"), gpus, samplerManager, procManager)
 
 	appLogger.Info("starting HTTP server", "listen_addr", cfg.ListenAddr)
 
@@ -67,6 +95,9 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		select {
 		case err := <-errCh:
 			samplerCancel()
+			if procCancel != nil {
+				procCancel()
+			}
 			if err != nil {
 				return err
 			}
@@ -75,9 +106,19 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 					return samplerErr
 				}
 			}
+			if procErrCh != nil {
+				if procErr := <-procErrCh; procErr != nil && !errors.Is(procErr, context.Canceled) {
+					return procErr
+				}
+			}
 			return nil
 		case err := <-samplerErrCh:
 			samplerErrCh = nil
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+		case err := <-procErrCh:
+			procErrCh = nil
 			if err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -96,9 +137,17 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 			}
 
 			samplerCancel()
+			if procCancel != nil {
+				procCancel()
+			}
 			if samplerErrCh != nil {
 				if samplerErr := <-samplerErrCh; samplerErr != nil && !errors.Is(samplerErr, context.Canceled) {
 					return samplerErr
+				}
+			}
+			if procErrCh != nil {
+				if procErr := <-procErrCh; procErr != nil && !errors.Is(procErr, context.Canceled) {
+					return procErr
 				}
 			}
 

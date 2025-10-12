@@ -1,0 +1,11 @@
+pos:	0
+flags:	02
+mnt_id:	28
+ino:	123456
+drm-memory:
+	aperture: 0 bo (0 bytes)
+	gtt: 32 bo (104857600 bytes)
+	vram: 16 bo (268435456 bytes)
+drm-engine:
+	gfx: 100000000 ns
+	media: 250000000 ns

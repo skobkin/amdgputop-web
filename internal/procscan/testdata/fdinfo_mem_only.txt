@@ -1,0 +1,7 @@
+pos:	0
+flags:	02
+mnt_id:	28
+ino:	789012
+drm-memory:
+	gtt: 4 bo (2097152 bytes)
+	vram: 0 bo (0 bytes)

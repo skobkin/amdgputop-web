@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
+	"github.com/skobkin/amdgputop-web/internal/procscan"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
 	"github.com/skobkin/amdgputop-web/internal/version"
 	"nhooyr.io/websocket"
@@ -24,7 +26,7 @@ import (
 func TestHealthzOK(t *testing.T) {
 	t.Parallel()
 
-	_, ts := newTestHTTPServer(t, config.Config{}, nil, nil)
+	_, ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/healthz")
@@ -67,7 +69,7 @@ func TestReadyzStates(t *testing.T) {
 	gpus := []gpu.Info{{ID: "card0"}}
 
 	// Sampler not configured -> degraded.
-	_, ts := newTestHTTPServer(t, cfg, gpus, nil)
+	_, ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
 	defer ts.Close()
 
 	assertReadyz(t, ts.URL+"/readyz", http.StatusServiceUnavailable, "degraded", "sampler_not_configured")
@@ -89,7 +91,7 @@ func TestReadyzStates(t *testing.T) {
 		t.Fatalf("NewManager error: %v", err)
 	}
 
-	_, tsInit := newTestHTTPServer(t, cfg, gpus, manager)
+	_, tsInit := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer tsInit.Close()
 
 	assertReadyz(t, tsInit.URL+"/readyz", http.StatusServiceUnavailable, "initializing", "waiting_for_samples")
@@ -112,7 +114,7 @@ func TestVersionEndpoint(t *testing.T) {
 	version.Set(version.Info{Version: "v0.0.1", Commit: "abc123", BuildTime: "now"})
 
 	cfg := defaultTestConfig()
-	_, ts := newTestHTTPServer(t, cfg, nil, nil)
+	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/version")
@@ -140,7 +142,7 @@ func TestStaticIndexServed(t *testing.T) {
 	t.Parallel()
 
 	cfg := defaultTestConfig()
-	_, ts := newTestHTTPServer(t, cfg, nil, nil)
+	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/")
@@ -171,7 +173,7 @@ func TestAPIGPUs(t *testing.T) {
 		{ID: "card0", PCI: "0000:01:00.0", PCIID: "1002:73df", RenderNode: "/dev/dri/renderD128"},
 	}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, nil)
+	_, ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/gpus")
@@ -224,7 +226,7 @@ func TestAPIGPUMetrics(t *testing.T) {
 	cfg := defaultTestConfig()
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, manager)
+	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/gpus/card0/metrics")
@@ -290,7 +292,7 @@ func TestWebSocketHelloAndStats(t *testing.T) {
 	cfg.SampleInterval = 5 * time.Millisecond
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, manager)
+	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	wsURL := toWebsocketURL(ts.URL + "/ws")
@@ -345,7 +347,172 @@ func TestWebSocketHelloAndStats(t *testing.T) {
 	}
 }
 
-func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, samplerManager *sampler.Manager) (*Server, *httptest.Server) {
+func TestWebSocketStatsAndProcs(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	sysfsRoot := t.TempDir()
+	debugRoot := t.TempDir()
+	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	busyPath := filepath.Join(devicePath, "gpu_busy_percent")
+	writeFile(t, busyPath, "7\n")
+
+	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
+	if err != nil {
+		t.Fatalf("NewReader error: %v", err)
+	}
+
+	samplerManager, err := sampler.NewManager(5*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	if err != nil {
+		t.Fatalf("NewManager error: %v", err)
+	}
+
+	samplerCtx, samplerCancel := context.WithCancel(context.Background())
+	t.Cleanup(samplerCancel)
+	go func() { _ = samplerManager.Run(samplerCtx) }()
+
+	waitFor(t, 2*time.Second, samplerManager.Ready)
+
+	procRoot := t.TempDir()
+	pidDir := filepath.Join(procRoot, "2200")
+	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o755); err != nil {
+		t.Fatalf("mkdir proc fdinfo: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o755); err != nil {
+		t.Fatalf("mkdir proc fd: %v", err)
+	}
+	writeFile(t, filepath.Join(pidDir, "comm"), "proc\n")
+	writeFile(t, filepath.Join(pidDir, "cmdline"), "proc\x00--gpu\x00")
+	writeFile(t, filepath.Join(pidDir, "status"), "Name:\tproc\nUid:\t0\t0\t0\t0\n")
+	fdinfoData, err := os.ReadFile(filepath.Join("..", "procscan", "testdata", "fdinfo_mem_engine.txt"))
+	if err != nil {
+		t.Fatalf("read fdinfo fixture: %v", err)
+	}
+	writeFile(t, filepath.Join(pidDir, "fdinfo", "5"), string(fdinfoData))
+	if err := os.Symlink("/dev/dri/renderD128", filepath.Join(pidDir, "fd", "5")); err != nil {
+		t.Fatalf("symlink fd: %v", err)
+	}
+
+	procCfg := config.ProcConfig{
+		Enable:       true,
+		ScanInterval: 25 * time.Millisecond,
+		MaxPIDs:      16,
+		MaxFDsPerPID: 16,
+	}
+
+	gpus := []gpu.Info{{ID: "card0", RenderNode: "/dev/dri/renderD128"}}
+
+	procManager, err := procscan.NewManager(procCfg, procRoot, gpus, logger)
+	if err != nil {
+		t.Fatalf("NewProcManager error: %v", err)
+	}
+
+	procCtx, procCancel := context.WithCancel(context.Background())
+	t.Cleanup(procCancel)
+	go func() { _ = procManager.Run(procCtx) }()
+
+	waitFor(t, 2*time.Second, procManager.Ready)
+
+	cfg := defaultTestConfig()
+	cfg.SampleInterval = 5 * time.Millisecond
+	cfg.Proc = procCfg
+	cfg.ProcRoot = procRoot
+
+	_, ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
+	defer ts.Close()
+
+	wsURL := toWebsocketURL(ts.URL + "/ws")
+	cctx, ccancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer ccancel()
+
+	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	helloMsg, err := expectHelloMessage(cctx, conn)
+	if err != nil {
+		t.Fatalf("hello message error: %v", err)
+	}
+	features, ok := helloMsg["features"].(map[string]any)
+	if !ok {
+		t.Fatalf("hello features missing")
+	}
+	if procs, ok := features["procs"].(bool); !ok || !procs {
+		t.Fatalf("expected procs feature true")
+	}
+
+	gotStats := false
+	gotProcs := false
+	deadline := time.Now().Add(2 * time.Second)
+
+	for time.Now().Before(deadline) && (!gotStats || !gotProcs) {
+		timeout := time.Until(deadline)
+		if timeout <= 0 {
+			break
+		}
+		readCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		msgType, data, err := conn.Read(readCtx)
+		cancel()
+		if err != nil {
+			t.Fatalf("read message: %v", err)
+		}
+		if msgType != websocket.MessageText {
+			continue
+		}
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(data, &envelope); err != nil {
+			t.Fatalf("decode envelope: %v", err)
+		}
+		switch envelope.Type {
+		case "stats":
+			gotStats = true
+		case "procs":
+			var msg struct {
+				Type         string                `json:"type"`
+				GPUId        string                `json:"gpu_id"`
+				Capabilities procscan.Capabilities `json:"capabilities"`
+				Processes    []procscan.Process    `json:"processes"`
+			}
+			if err := json.Unmarshal(data, &msg); err != nil {
+				t.Fatalf("decode procs message: %v", err)
+			}
+			if msg.GPUId != "card0" {
+				t.Fatalf("unexpected gpu id %q", msg.GPUId)
+			}
+			if !msg.Capabilities.VRAMGTTFromFDInfo {
+				t.Fatalf("expected vram capability true")
+			}
+			if !msg.Capabilities.EngineTimeFromFDInfo {
+				t.Fatalf("expected engine capability true")
+			}
+			if len(msg.Processes) == 0 {
+				t.Fatalf("expected at least one process")
+			}
+			proc := msg.Processes[0]
+			if proc.RenderNode != "renderD128" {
+				t.Fatalf("unexpected render node %q", proc.RenderNode)
+			}
+			if proc.VRAMBytes == nil || *proc.VRAMBytes == 0 {
+				t.Fatalf("expected vram metric")
+			}
+			gotProcs = true
+		}
+	}
+
+	if !gotStats {
+		t.Fatalf("did not receive stats message")
+	}
+	if !gotProcs {
+		t.Fatalf("did not receive procs message")
+	}
+}
+
+func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, samplerManager *sampler.Manager, procManager *procscan.Manager) (*Server, *httptest.Server) {
 	t.Helper()
 
 	if cfg.ListenAddr == "" {
@@ -353,7 +520,7 @@ func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, sampler
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := New(cfg, logger, gpus, samplerManager)
+	srv := New(cfg, logger, gpus, samplerManager, procManager)
 	ts := httptest.NewServer(srv.httpServer.Handler)
 	t.Cleanup(ts.Close)
 	return srv, ts
@@ -412,6 +579,24 @@ func writeFile(t *testing.T, path, contents string) {
 	}
 }
 
+func expectHelloMessage(ctx context.Context, conn *websocket.Conn) (map[string]any, error) {
+	msgType, data, err := conn.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if msgType != websocket.MessageText {
+		return nil, fmt.Errorf("expected text message, got %v", msgType)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, err
+	}
+	if payload["type"] != "hello" {
+		return nil, fmt.Errorf("expected hello message, got %v", payload["type"])
+	}
+	return payload, nil
+}
+
 func waitFor(t *testing.T, timeout time.Duration, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -430,6 +615,7 @@ func defaultTestConfig() config.Config {
 		SampleInterval: 250 * time.Millisecond,
 		AllowedOrigins: []string{"*"},
 		DefaultGPU:     "auto",
+		ProcRoot:       "/proc",
 		WS: config.WebsocketConfig{
 			MaxClients:   1024,
 			WriteTimeout: 3 * time.Second,

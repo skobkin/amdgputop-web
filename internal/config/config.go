@@ -20,6 +20,7 @@ type Config struct {
 	LogLevel         slog.Level
 	SysfsRoot        string
 	DebugfsRoot      string
+	ProcRoot         string
 	WS               WebsocketConfig
 	Proc             ProcConfig
 }
@@ -51,6 +52,7 @@ func Load() (Config, error) {
 		LogLevel:         slog.LevelInfo,
 		SysfsRoot:        "/sys",
 		DebugfsRoot:      "/sys/kernel/debug",
+		ProcRoot:         "/proc",
 		WS: WebsocketConfig{
 			MaxClients:   1024,
 			WriteTimeout: 3 * time.Second,
@@ -121,6 +123,10 @@ func Load() (Config, error) {
 
 	if value := strings.TrimSpace(os.Getenv("APP_DEBUGFS_ROOT")); value != "" {
 		cfg.DebugfsRoot = value
+	}
+
+	if value := strings.TrimSpace(os.Getenv("APP_PROC_ROOT")); value != "" {
+		cfg.ProcRoot = value
 	}
 
 	if value := strings.TrimSpace(os.Getenv("APP_WS_MAX_CLIENTS")); value != "" {

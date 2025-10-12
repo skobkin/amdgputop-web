@@ -359,10 +359,10 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 3 — Process Top (best‑effort)
 
-* [ ] Implement `/proc` scanner with budgets/limits; parse `fdinfo` for renderD* FDs.
-* [ ] Extract VRAM/GTT totals from `fdinfo: drm-memory`.
-* [ ] Optional engine time deltas if `drm-engine` present; otherwise null.
-* [ ] Separate cadence and payload (`procs` frames); capability flag to client.
+* [x] Implement `/proc` scanner with budgets/limits; parse `fdinfo` for renderD* FDs.
+* [x] Extract VRAM/GTT totals from `fdinfo: drm-memory`.
+* [x] Optional engine time deltas if `drm-engine` present; otherwise null.
+* [x] Separate cadence and payload (`procs` frames); capability flag to client.
 * [ ] Frontend `<ProcTable>` with sorting & null‑safe UI.
 
 ### Phase 4 — Robustness & Observability
