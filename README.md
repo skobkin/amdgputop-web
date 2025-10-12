@@ -16,7 +16,7 @@ Preact single-page app.
 - Configuration via environment variables (`APP_*`), including sampler cadence,
   process scanner limits, and allowed origins.
 
-## Quick start (host build)
+## Quick Start (host build)
 
 ```bash
 go build ./cmd/amdgputop-web
@@ -60,6 +60,24 @@ docker run --rm -p 8080:8080 \
 Refer to `docs/DOCKER.md` for more detail, including why `--pid=host` is needed
 to observe host processes.
 
+## Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `APP_LISTEN_ADDR` | `:8080` | HTTP listen address. |
+| `APP_SAMPLE_INTERVAL` | `250ms` | Metrics sampling cadence (100ms – 2s). |
+| `APP_ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed for WebSocket/HTTP. |
+| `APP_DEFAULT_GPU` | `auto` | GPU pre-selected on connect (`auto` = first detected). |
+| `APP_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`). |
+| `APP_ENABLE_PROMETHEUS` | `false` | Enable `/metrics` endpoint when `true`. |
+| `APP_ENABLE_PPROF` | `false` | Expose Go pprof handlers on `/debug/pprof/*`. |
+| `APP_PROC_ENABLE` | `true` | Toggle process scanner feature. |
+| `APP_PROC_SCAN_INTERVAL` | `2s` | Interval between process snapshot scans. |
+| `APP_WS_MAX_CLIENTS` | `1024` | Maximum concurrent WebSocket clients. |
+
+See `internal/config/config.go` for the full list, including test-only roots
+(`APP_SYSFS_ROOT`, `APP_DEBUGFS_ROOT`, `APP_PROC_ROOT`).
+
 ## Development
 
 ```bash
@@ -73,3 +91,7 @@ cd web && npm ci && npm run build
 CI (see `.github/workflows/ci.yml`) enforces `gofmt`, `go vet`, Go tests,
 frontend build, and publishes tagged releases with Linux binaries and Docker
 images.
+
+## Screenshot
+
+![AMD GPU telemetry UI](docs/screenshot.png "Current UI snapshot")
