@@ -6,6 +6,8 @@ Read-only web UI for live AMD GPU telemetry inspired by the `amdgpu_top` CLI.
 The backend is pure Go (stdlib HTTP + WebSockets) and the frontend is a compact
 Preact single-page app.
 
+![AMD GPU telemetry UI](docs/screenshot.webp "Current UI snapshot")
+
 ## Features
 
 - Enumerates DRM GPUs and streams utilization, clocks, temps, VRAM/GTT usage.
@@ -91,7 +93,3 @@ cd web && npm ci && npm run build
 CI (see `.github/workflows/ci.yml`) enforces `gofmt`, `go vet`, Go tests,
 frontend build, and publishes tagged releases with Linux binaries and Docker
 images.
-
-## Screenshot
-
-![AMD GPU telemetry UI](docs/screenshot.png "Current UI snapshot")
