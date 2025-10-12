@@ -14,6 +14,7 @@ type fdMetrics struct {
 	HasMemory   bool
 	EngineTotal uint64
 	HasEngine   bool
+	ClientID    int
 }
 
 func parseFDInfo(data []byte) fdMetrics {
@@ -55,14 +56,22 @@ func parseFDInfo(data []byte) fdMetrics {
 		switch section {
 		case sectionMemory:
 			switch {
-			case strings.Contains(lower, "vram"):
+			case strings.HasPrefix(lower, "vram"),
+				strings.HasPrefix(lower, "drm-memory-vram"),
+				strings.HasPrefix(lower, "amd-requested-vram"):
 				if value, ok := parseBytesValue(trimmed); ok {
-					metrics.VRAMBytes += value
+					if value > metrics.VRAMBytes {
+						metrics.VRAMBytes = value
+					}
 					metrics.HasMemory = true
 				}
-			case strings.Contains(lower, "gtt"):
+			case strings.HasPrefix(lower, "gtt"),
+				strings.HasPrefix(lower, "drm-memory-gtt"),
+				strings.HasPrefix(lower, "amd-requested-gtt"):
 				if value, ok := parseBytesValue(trimmed); ok {
-					metrics.GTTBytes += value
+					if value > metrics.GTTBytes {
+						metrics.GTTBytes = value
+					}
 					metrics.HasMemory = true
 				}
 			}
@@ -71,6 +80,12 @@ func parseFDInfo(data []byte) fdMetrics {
 				metrics.EngineTotal += value
 				metrics.HasEngine = true
 			}
+		default:
+			if strings.HasPrefix(lower, "drm-client-id") {
+				if value, ok := parseIntValue(trimmed); ok {
+					metrics.ClientID = value
+				}
+			}
 		}
 	}
 
@@ -78,55 +93,22 @@ func parseFDInfo(data []byte) fdMetrics {
 }
 
 func parseBytesValue(line string) (uint64, bool) {
-	fields := strings.Fields(line)
-	for i := len(fields) - 1; i >= 0; i-- {
-		token := strings.Trim(fields[i], "(),")
-		if token == "" {
-			continue
-		}
-		lower := strings.ToLower(token)
-		multiplier := uint64(1)
-
-		switch {
-		case strings.HasSuffix(lower, "bytes"):
-			token = token[:len(token)-5]
-		case strings.HasSuffix(lower, "byte"):
-			token = token[:len(token)-4]
-		case strings.HasSuffix(lower, "kb"):
-			token = token[:len(token)-2]
-			multiplier = 1024
-		case strings.HasSuffix(lower, "kib"):
-			token = token[:len(token)-3]
-			multiplier = 1024
-		case strings.HasSuffix(lower, "mb"):
-			token = token[:len(token)-2]
-			multiplier = 1024 * 1024
-		case strings.HasSuffix(lower, "mib"):
-			token = token[:len(token)-3]
-			multiplier = 1024 * 1024
-		case strings.HasSuffix(lower, "gb"):
-			token = token[:len(token)-2]
-			multiplier = 1024 * 1024 * 1024
-		case strings.HasSuffix(lower, "gib"):
-			token = token[:len(token)-3]
-			multiplier = 1024 * 1024 * 1024
-		case strings.HasSuffix(lower, "b"):
-			token = token[:len(token)-1]
-		}
-
-		token = strings.Trim(token, "()")
-		if token == "" {
-			continue
-		}
-
-		if value, err := strconv.ParseFloat(token, 64); err == nil {
-			return uint64(value * float64(multiplier)), true
-		}
-		if value, err := strconv.ParseUint(token, 10, 64); err == nil {
-			return value * multiplier, true
-		}
+	matches := bytesValuePattern.FindAllStringSubmatch(strings.ToLower(line), -1)
+	if len(matches) == 0 {
+		return 0, false
 	}
-	return 0, false
+
+	match := matches[len(matches)-1]
+	valueStr := match[1]
+	unit := match[2]
+
+	value, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return 0, false
+	}
+
+	multiplier := bytesUnitMultiplier(unit)
+	return uint64(value * float64(multiplier)), true
 }
 
 func parseEngineValue(line string) (uint64, bool) {
@@ -146,6 +128,8 @@ func parseEngineValue(line string) (uint64, bool) {
 	return uint64(value * float64(engineUnitMultiplier(unit))), true
 }
 
+var bytesValuePattern = regexp.MustCompile(`([-+]?\d+(?:\.\d+)?)\s*(bytes?|byte|kib|kb|mib|mb|gib|gb|b)?`)
+
 var engineValuePattern = regexp.MustCompile(`([-+]?\d+(?:\.\d+)?)\s*(ns|us|ms|s)`)
 
 func engineUnitMultiplier(unit string) uint64 {
@@ -161,4 +145,34 @@ func engineUnitMultiplier(unit string) uint64 {
 	default:
 		return 1
 	}
+}
+
+func bytesUnitMultiplier(unit string) uint64 {
+	switch unit {
+	case "", "b", "byte", "bytes":
+		return 1
+	case "kb", "kib":
+		return 1024
+	case "mb", "mib":
+		return 1024 * 1024
+	case "gb", "gib":
+		return 1024 * 1024 * 1024
+	default:
+		return 1
+	}
+}
+
+func parseIntValue(line string) (int, bool) {
+	fields := strings.Fields(line)
+	for i := len(fields) - 1; i >= 0; i-- {
+		token := strings.Trim(fields[i], "(),")
+		if token == "" {
+			continue
+		}
+		value, err := strconv.Atoi(token)
+		if err == nil {
+			return value, true
+		}
+	}
+	return 0, false
 }

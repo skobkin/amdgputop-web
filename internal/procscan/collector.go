@@ -40,6 +40,11 @@ type collector struct {
 	userCache map[int]string
 }
 
+type clientMemory struct {
+	VRAM uint64
+	GTT  uint64
+}
+
 func newCollector(procRoot string, maxPIDs, maxFDs int, lookup *gpuLookup, logger *slog.Logger) *collector {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -127,6 +132,7 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 	}
 
 	result := make(map[string]*rawProcess)
+	clientTotals := make(map[string]map[int]clientMemory)
 	fdCount := 0
 
 	for _, fdEntry := range fdEntries {
@@ -176,9 +182,34 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 		}
 
 		if metrics.HasMemory {
-			raw.vramBytes += metrics.VRAMBytes
-			raw.gttBytes += metrics.GTTBytes
-			raw.hasMemory = true
+			if metrics.ClientID > 0 {
+				if _, ok := clientTotals[entry.gpuID]; !ok {
+					clientTotals[entry.gpuID] = make(map[int]clientMemory)
+				}
+				prev := clientTotals[entry.gpuID][metrics.ClientID]
+				var deltaVRAM, deltaGTT uint64
+				if metrics.VRAMBytes > prev.VRAM {
+					deltaVRAM = metrics.VRAMBytes - prev.VRAM
+					prev.VRAM = metrics.VRAMBytes
+				}
+				if metrics.GTTBytes > prev.GTT {
+					deltaGTT = metrics.GTTBytes - prev.GTT
+					prev.GTT = metrics.GTTBytes
+				}
+				clientTotals[entry.gpuID][metrics.ClientID] = prev
+				if deltaVRAM > 0 {
+					raw.vramBytes += deltaVRAM
+					raw.hasMemory = true
+				}
+				if deltaGTT > 0 {
+					raw.gttBytes += deltaGTT
+					raw.hasMemory = true
+				}
+			} else {
+				raw.vramBytes += metrics.VRAMBytes
+				raw.gttBytes += metrics.GTTBytes
+				raw.hasMemory = true
+			}
 		}
 		if metrics.HasEngine {
 			raw.engineTotal += metrics.EngineTotal
