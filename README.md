@@ -1,5 +1,7 @@
 # amdgpu_top-web
 
+[![CI](https://github.com/skobkin/amdgputop-web/actions/workflows/ci.yml/badge.svg)](https://github.com/skobkin/amdgputop-web/actions/workflows/ci.yml)
+
 Read-only web UI for live AMD GPU telemetry inspired by the `amdgpu_top` CLI.
 The backend is pure Go (stdlib HTTP + WebSockets) and the frontend is a compact
 Preact single-page app.
@@ -34,8 +36,7 @@ An Alpine-based multi-stage image is defined in `Dockerfile`.
 ```bash
 docker build -t amdgputop-web:dev .
 docker run --rm -p 8080:8080 \
-  --device=/dev/dri/card0 \
-  --device=/dev/dri/renderD128 \
+  --device=/dev/dri \
   --device=/dev/kfd \
   --group-add video --group-add render \
   --pid=host \
