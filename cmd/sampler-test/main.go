@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skobkin/amdgputop-web/internal/api"
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/procscan"
@@ -124,9 +125,49 @@ func main() {
 	}
 
 	var (
-		procManager *procscan.Manager
-		procCancel  context.CancelFunc
+		samplerManager *sampler.Manager
+		samplerCancel  context.CancelFunc
+		procManager    *procscan.Manager
+		procCancel     context.CancelFunc
 	)
+
+	if len(readers) > 0 {
+		interval := baseCfg.SampleInterval
+		if interval <= 0 {
+			interval = 250 * time.Millisecond
+		}
+		managerLogger := logger.With("component", "sampler")
+		samplerManager, err = sampler.NewManager(interval, readers, managerLogger)
+		if err != nil {
+			logger.Warn("sampler manager init failed", "err", err)
+		} else {
+			var samplerCtx context.Context
+			samplerCtx, samplerCancel = context.WithCancel(context.Background())
+			go func() { _ = samplerManager.Run(samplerCtx) }()
+			if !waitUntil(2*time.Second, samplerManager.Ready) {
+				logger.Warn("sampler manager did not become ready before timeout")
+			}
+			defer samplerCancel()
+		}
+	}
+
+	if samplerManager == nil && len(readers) > 0 {
+		logger.Warn("sampler manager unavailable, falling back to direct reads")
+	}
+
+	if len(readers) == 0 && !opts.collectProcs {
+		logger.Warn("no telemetry sources selected", "gpu_count", len(selected))
+		return
+	}
+
+	// Process manager setup (optional).
+	if len(readers) == 0 && opts.collectProcs {
+		logger.Info("metrics readers unavailable; proceeding with process snapshots only")
+	}
+
+	if len(readers) == 0 && samplerManager == nil && opts.collectProcs {
+		logger.Warn("metrics sampling unavailable; collecting processes only")
+	}
 
 	if opts.collectProcs {
 		procLogger := logger.With("component", "procscan")
@@ -149,7 +190,7 @@ func main() {
 		}
 	}
 
-	if len(readers) == 0 && (procManager == nil || !procManager.Ready()) {
+	if samplerManager == nil && len(readers) == 0 && (procManager == nil || !procManager.Ready()) {
 		logger.Warn("no telemetry sources available for selected GPUs", "gpu_count", len(selected))
 		return
 	}
@@ -165,13 +206,24 @@ func main() {
 	sort.Strings(ids)
 
 	for _, id := range ids {
-		reader, ok := readers[id]
-		if !ok {
-			fmt.Printf("GPU %s (%s) sample: metrics unavailable (reader init failed)\n\n", id, gpuLabel(infoByID[id]))
-			continue
+		var (
+			sample sampler.Sample
+			ok     bool
+		)
+		if samplerManager != nil {
+			sample, ok = samplerManager.Latest(id)
 		}
-		sample := reader.Sample()
-		data, err := json.MarshalIndent(sample, "", "  ")
+		if !ok {
+			reader, hasReader := readers[id]
+			if !hasReader {
+				fmt.Printf("GPU %s (%s) sample: metrics unavailable (reader init failed)\n\n", id, gpuLabel(infoByID[id]))
+				continue
+			}
+			sample = reader.Sample()
+			ok = true
+		}
+		payload := api.NewStatsMessage(sample)
+		data, err := json.MarshalIndent(payload, "", "  ")
 		if err != nil {
 			logger.Error("encode sample", "gpu_id", id, "err", err)
 			continue
@@ -187,7 +239,8 @@ func main() {
 				fmt.Printf("- %s (%s): no process data available yet\n", id, gpuLabel(infoByID[id]))
 				continue
 			}
-			data, err := json.MarshalIndent(snapshot, "", "  ")
+			payload := api.NewProcsMessage(snapshot)
+			data, err := json.MarshalIndent(payload, "", "  ")
 			if err != nil {
 				logger.Error("encode process snapshot", "gpu_id", id, "err", err)
 				continue

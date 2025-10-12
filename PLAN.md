@@ -366,6 +366,7 @@ docker run --rm -p 8080:8080 \
 * [x] REST endpoint `/api/gpus/{id}/procs` for direct polling.
 * [x] Frontend `<ProcTable>` with sorting & null‑safe UI.
 * [x] UI polish: compact stat cards, GPU load meter, truncated process commands, UI scale presets.
+* [x] `sampler-test` CLI reuses sampler manager + shared WS/HTTP envelopes for metrics & procs.
 
 ### Phase 4 — Robustness & Observability
 

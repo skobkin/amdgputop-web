@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skobkin/amdgputop-web/internal/api"
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/procscan"
@@ -269,14 +270,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
-	hello := helloMessage{
-		Type:       "hello",
-		IntervalMS: int(s.cfg.SampleInterval / time.Millisecond),
-		GPUs:       s.gpus,
-		Features: map[string]bool{
-			"procs": s.proc != nil,
-		},
+	features := map[string]bool{
+		"procs": s.proc != nil,
 	}
+	hello := api.NewHelloMessage(int(s.cfg.SampleInterval/time.Millisecond), s.gpus, features)
 
 	if err := s.writeJSON(r.Context(), conn, hello); err != nil {
 		s.logger.Warn("failed to send hello", "err", err)
@@ -369,7 +366,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				currentGPU = ""
 				continue
 			}
-			if err := s.writeJSON(ctx, conn, statsMessage{Type: "stats", Sample: sample}); err != nil {
+			if err := s.writeJSON(ctx, conn, api.NewStatsMessage(sample)); err != nil {
 				s.logger.Warn("failed to write stats message", "err", err)
 				return
 			}
@@ -378,7 +375,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				procCh = nil
 				continue
 			}
-			if err := s.writeJSON(ctx, conn, procsMessage{Type: "procs", Snapshot: snapshot}); err != nil {
+			if err := s.writeJSON(ctx, conn, api.NewProcsMessage(snapshot)); err != nil {
 				s.logger.Warn("failed to write procs message", "err", err)
 				return
 			}
@@ -403,41 +400,6 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-}
-
-type helloMessage struct {
-	Type       string          `json:"type"`
-	IntervalMS int             `json:"interval_ms"`
-	GPUs       []gpu.Info      `json:"gpus"`
-	Features   map[string]bool `json:"features"`
-}
-
-type statsMessage struct {
-	Type string `json:"type"`
-	sampler.Sample
-}
-
-type procsMessage struct {
-	Type string `json:"type"`
-	procscan.Snapshot
-}
-
-type errorMessage struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
-}
-
-type clientMessage struct {
-	Type string `json:"type"`
-}
-
-type subscribeMessage struct {
-	Type  string `json:"type"`
-	GPUId string `json:"gpu_id"`
-}
-
-type pongMessage struct {
-	Type string `json:"type"`
 }
 
 func (s *Server) defaultGPU() string {
@@ -484,7 +446,7 @@ func (s *Server) readMessages(ctx context.Context, conn *websocket.Conn, out cha
 }
 
 func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, data []byte, switchSubscription func(string) error, defaultGPU string) error {
-	var envelope clientMessage
+	var envelope api.ClientMessage
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		s.logger.Debug("invalid client message", "err", err)
 		return nil
@@ -492,7 +454,7 @@ func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, 
 
 	switch envelope.Type {
 	case "subscribe":
-		var msg subscribeMessage
+		var msg api.SubscribeMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return s.sendError(ctx, conn, "invalid subscribe payload")
 		}
@@ -507,7 +469,7 @@ func (s *Server) handleClientMessage(ctx context.Context, conn *websocket.Conn, 
 			return s.sendError(ctx, conn, err.Error())
 		}
 	case "ping":
-		return s.writeJSON(ctx, conn, pongMessage{Type: "pong"})
+		return s.writeJSON(ctx, conn, api.PongMessage{Type: "pong"})
 	default:
 		s.logger.Debug("unknown message type", "type", envelope.Type)
 	}
@@ -525,7 +487,7 @@ func (s *Server) writeJSON(ctx context.Context, conn *websocket.Conn, payload an
 }
 
 func (s *Server) sendError(ctx context.Context, conn *websocket.Conn, msg string) error {
-	return s.writeJSON(ctx, conn, errorMessage{Type: "error", Message: msg})
+	return s.writeJSON(ctx, conn, api.ErrorMessage{Type: "error", Message: msg})
 }
 
 func originPatterns(origins []string) []string {
