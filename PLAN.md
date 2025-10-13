@@ -336,10 +336,10 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 0 — Repo & Scaffolding
 
-* [ ] ✓ Create repo, MIT license, `README.md`.
-* [ ] ✓ Init Go module (**latest Go**, add `toolchain`), basic `Makefile`.
-* [ ] ✓ Frontend scaffold (Vite + Preact + Pico + Zustand).
-* [ ] ✓ CI: build + test + race; dependabot/renovate for Go/Node.
+* [x] ✓ Create repo, MIT license, `README.md`.
+* [x] ✓ Init Go module (**latest Go**, add `toolchain`), basic `Makefile`.
+* [x] ✓ Frontend scaffold (Vite + Preact + Pico + Zustand).
+* [x] ✓ CI: build + test + race; dependabot/renovate for Go/Node.
 
 ### Phase 1 — Backend skeleton (stdlib only)
 

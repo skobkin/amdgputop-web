@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      GOTOOLCHAIN: auto
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +44,9 @@ jobs:
       - name: Go tests
         run: go test ./...
 
+      - name: Go tests (race)
+        run: go test -race -ldflags "-linkmode=external" ./...
+
       - name: Build backend binary
         run: go build ./cmd/amdgputop-web
 
@@ -67,6 +72,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    env:
+      GOTOOLCHAIN: auto
     steps:
       - name: Checkout
         uses: actions/checkout@v4

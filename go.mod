@@ -1,6 +1,8 @@
 module github.com/skobkin/amdgputop-web
 
-go 1.25.1
+go 1.25
+
+toolchain go1.25.1
 
 require (
 	github.com/jaypipes/pcidb v1.0.0
