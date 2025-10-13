@@ -23,27 +23,12 @@ docker build -t amdgputop-web:dev \
 - **Permissions**: add the container user to the same groups that can read the
   devices (typically `video` and `render`).
 
-Example run command on a host with one GPU:
-
-```bash
-VID_GID=$(getent group video | cut -d: -f3)
-RENDER_GID=$(getent group render | cut -d: -f3)
-
-docker run --rm -p 8080:8080 \
-  --device=/dev/dri \
-  --device=/dev/kfd \
-  --group-add "${VID_GID}" \
-  --group-add "${RENDER_GID}" \
-  --pid=host \  # required for host process visibility
-  --cap-add SYS_PTRACE \  # required to read host /proc entries
-  --user root \
-  -e APP_ALLOWED_ORIGINS="http://localhost:8080" \
-  amdgputop-web:dev
-```
-
-If you omit `--pid=host`, the process table renders container-local processes
-only. The rest of the metrics (busy %, clocks, temps, etc.) continue to work
-provided the device nodes are accessible.
+See the Docker section in `README.md` for the most up-to-date `docker run`
+example. The flags above are still required—particularly `--pid=host` and
+`--cap-add SYS_PTRACE`—when you need to observe host-side processes. Without
+`--pid=host`, the process table renders container-local processes only. The rest
+of the metrics (busy %, clocks, temps, etc.) continue to work provided the
+device nodes are accessible.
 
 ## Permissions matrix
 
