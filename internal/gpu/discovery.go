@@ -32,7 +32,12 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 
-	sysRoot, err := os.OpenRoot(root)
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve sysfs root: %w", err)
+	}
+
+	sysRoot, err := os.OpenRoot(absRoot)
 	if err != nil {
 		return nil, fmt.Errorf("open sysfs root: %w", err)
 	}
@@ -64,16 +69,9 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 			continue
 		}
 
-		cardRoot, err := sysRoot.OpenRoot(filepath.Join(drmClassPath, name))
-		if err != nil {
-			logger.Warn("failed to open card root", "card", name, "err", err)
-			continue
-		}
+		cardRelPath := filepath.Join(drmClassPath, name)
 
-		info, err := loadCardInfo(name, cardRoot)
-		if err := cardRoot.Close(); err != nil {
-			logger.Debug("failed to close card root", "card", name, "err", err)
-		}
+		info, err := loadCardInfo(sysRoot, absRoot, name, cardRelPath)
 		if err != nil {
 			logger.Warn("failed to load card info", "card", name, "err", err)
 			continue
@@ -84,10 +82,19 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 	return infos, nil
 }
 
-func loadCardInfo(cardID string, cardRoot *os.Root) (Info, error) {
+func loadCardInfo(sysRoot *os.Root, absRoot, cardID, cardRelPath string) (Info, error) {
+	cardRoot, err := sysRoot.OpenRoot(cardRelPath)
+	if err != nil {
+		return Info{}, fmt.Errorf("open card root: %w", err)
+	}
+	defer cardRoot.Close()
+
 	deviceRoot, err := cardRoot.OpenRoot("device")
 	if err != nil {
-		return Info{}, fmt.Errorf("open device root: %w", err)
+		deviceRoot, err = openResolvedRoot(sysRoot, absRoot, cardRoot, cardRelPath, "device", err)
+		if err != nil {
+			return Info{}, err
+		}
 	}
 	defer deviceRoot.Close()
 
@@ -191,6 +198,28 @@ func readTrim(root *os.Root, name string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func openResolvedRoot(sysRoot *os.Root, absRoot string, base *os.Root, baseRelPath, name string, originalErr error) (*os.Root, error) {
+	linkAbs := filepath.Join(absRoot, baseRelPath, name)
+	resolved, err := filepath.EvalSymlinks(linkAbs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s symlink: %w", name, err)
+	}
+	if !strings.HasPrefix(resolved, absRoot) {
+		return nil, fmt.Errorf("resolve %s symlink: target %q escapes sysfs root", name, resolved)
+	}
+
+	relTarget, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s symlink: %w", name, err)
+	}
+
+	targetRoot, err := sysRoot.OpenRoot(relTarget)
+	if err != nil {
+		return nil, fmt.Errorf("open resolved %s root: %w", name, err)
+	}
+	return targetRoot, nil
 }
 
 func formatHexPair(vendor, device string) string {

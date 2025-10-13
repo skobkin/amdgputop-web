@@ -509,7 +509,6 @@ func TestAPIGPUProcs(t *testing.T) {
 		t.Fatalf("NewManager error: %v", err)
 	}
 	t.Cleanup(func() { _ = samplerManager.Close() })
-	t.Cleanup(func() { _ = samplerManager.Close() })
 
 	samplerCtx, samplerCancel := context.WithCancel(context.Background())
 	t.Cleanup(samplerCancel)
@@ -550,7 +549,6 @@ func TestAPIGPUProcs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProcManager error: %v", err)
 	}
-	t.Cleanup(func() { _ = procManager.Close() })
 	t.Cleanup(func() { _ = procManager.Close() })
 
 	procCtx, procCancel := context.WithCancel(context.Background())
