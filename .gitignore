@@ -245,3 +245,4 @@ go.work.sum
 *.swp
 *.swo
 coverage.out
+.lighthouseci/

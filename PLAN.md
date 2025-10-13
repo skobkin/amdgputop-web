@@ -384,7 +384,7 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 6 — Polish
 
-* [ ] Accessibility pass; Lighthouse baseline.
+* [x] Accessibility pass; Lighthouse baseline.
 * [x] README with quickstart, env var table, screenshots.
 * [x] Release v0.1.0 (host‑first); v0.2.0 (Docker validated).
 
