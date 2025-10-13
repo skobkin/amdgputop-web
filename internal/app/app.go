@@ -46,6 +46,11 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 	if err != nil {
 		return fmt.Errorf("init sampler manager: %w", err)
 	}
+	defer func() {
+		if err := samplerManager.Close(); err != nil {
+			appLogger.Warn("sampler manager close", "err", err)
+		}
+	}()
 
 	var (
 		procManager *procscan.Manager
@@ -57,6 +62,11 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		if err != nil {
 			return fmt.Errorf("init proc scanner: %w", err)
 		}
+		defer func() {
+			if err := procManager.Close(); err != nil {
+				appLogger.Warn("proc manager close", "err", err)
+			}
+		}()
 	}
 
 	samplerCtx, samplerCancel := context.WithCancel(ctx)

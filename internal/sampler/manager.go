@@ -2,6 +2,7 @@ package sampler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -15,10 +16,11 @@ type Manager struct {
 	readers  map[string]*Reader
 	logger   *slog.Logger
 
-	mu           sync.RWMutex
-	latest       map[string]Sample
-	subscribers  map[string]map[*subscriber]struct{}
-	shutdownOnce sync.Once
+	mu          sync.RWMutex
+	latest      map[string]Sample
+	subscribers map[string]map[*subscriber]struct{}
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 // NewManager builds a Manager from pre-constructed readers.
@@ -43,7 +45,7 @@ func NewManager(interval time.Duration, readers map[string]*Reader, logger *slog
 func (m *Manager) Run(ctx context.Context) error {
 	if len(m.readers) == 0 {
 		<-ctx.Done()
-		return nil
+		return m.Close()
 	}
 
 	var wg sync.WaitGroup
@@ -74,7 +76,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	<-ctx.Done()
 	wg.Wait()
-	return nil
+	return m.Close()
 }
 
 // Latest returns the most recent sample for the given GPU.
@@ -166,6 +168,23 @@ func (m *Manager) removeSubscriber(gpuID string, sub *subscriber) {
 		}
 	}
 	sub.close()
+}
+
+// Close releases all reader resources. Safe for repeated use.
+func (m *Manager) Close() error {
+	m.closeOnce.Do(func() {
+		var errs []error
+		for id, reader := range m.readers {
+			if reader == nil {
+				continue
+			}
+			if err := reader.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close reader %s: %w", id, err))
+			}
+		}
+		m.closeErr = errors.Join(errs...)
+	})
+	return m.closeErr
 }
 
 type subscriber struct {

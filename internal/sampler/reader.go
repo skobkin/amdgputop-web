@@ -3,6 +3,7 @@ package sampler
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -36,6 +38,8 @@ type Reader struct {
 	deviceRoot    *os.Root
 	debugCardRoot *os.Root
 	hwmonRoot     *os.Root
+	closeOnce     sync.Once
+	closeErr      error
 }
 
 // NewReader constructs a Reader for the provided card identifier (e.g. "card0").
@@ -314,6 +318,34 @@ func detectHwmon(deviceRoot *os.Root) *os.Root {
 		}
 	}
 	return nil
+}
+
+// Close releases any file descriptors held by the reader. It is safe to call
+// multiple times; subsequent calls return the same error result.
+func (r *Reader) Close() error {
+	r.closeOnce.Do(func() {
+		var errs []error
+		if r.hwmonRoot != nil {
+			if err := r.hwmonRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close hwmon root: %w", err))
+			}
+			r.hwmonRoot = nil
+		}
+		if r.debugCardRoot != nil {
+			if err := r.debugCardRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close debug root: %w", err))
+			}
+			r.debugCardRoot = nil
+		}
+		if r.deviceRoot != nil {
+			if err := r.deviceRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close device root: %w", err))
+			}
+			r.deviceRoot = nil
+		}
+		r.closeErr = errors.Join(errs...)
+	})
+	return r.closeErr
 }
 
 func parseCardIndex(cardID string) (int, error) {

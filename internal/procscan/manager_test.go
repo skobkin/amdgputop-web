@@ -35,6 +35,7 @@ func TestManagerSnapshotsAndSubscriptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	manager.collector.userCache[1000] = "alice"
 

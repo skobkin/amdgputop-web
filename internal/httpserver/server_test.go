@@ -91,6 +91,7 @@ func TestReadyzStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager error: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	_, tsInit := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer tsInit.Close()
@@ -353,6 +354,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	_, tsNoSample := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer tsNoSample.Close()
@@ -379,6 +381,7 @@ func TestWebSocketSubscribeUnknownGPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	cfg := defaultTestConfig()
 	cfg.DefaultGPU = "auto"
@@ -440,6 +443,7 @@ func TestAPIGPUMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager error: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -504,6 +508,8 @@ func TestAPIGPUProcs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager error: %v", err)
 	}
+	t.Cleanup(func() { _ = samplerManager.Close() })
+	t.Cleanup(func() { _ = samplerManager.Close() })
 
 	samplerCtx, samplerCancel := context.WithCancel(context.Background())
 	t.Cleanup(samplerCancel)
@@ -544,6 +550,8 @@ func TestAPIGPUProcs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProcManager error: %v", err)
 	}
+	t.Cleanup(func() { _ = procManager.Close() })
+	t.Cleanup(func() { _ = procManager.Close() })
 
 	procCtx, procCancel := context.WithCancel(context.Background())
 	t.Cleanup(procCancel)

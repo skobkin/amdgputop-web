@@ -124,6 +124,12 @@ func main() {
 		readers[info.ID] = reader
 	}
 
+	defer func() {
+		for _, reader := range readers {
+			_ = reader.Close()
+		}
+	}()
+
 	var (
 		samplerManager *sampler.Manager
 		samplerCancel  context.CancelFunc
@@ -141,6 +147,11 @@ func main() {
 		if err != nil {
 			logger.Warn("sampler manager init failed", "err", err)
 		} else {
+			defer func() {
+				if err := samplerManager.Close(); err != nil {
+					logger.Warn("sampler manager close", "err", err)
+				}
+			}()
 			var samplerCtx context.Context
 			samplerCtx, samplerCancel = context.WithCancel(context.Background())
 			go func() { _ = samplerManager.Run(samplerCtx) }()
@@ -180,6 +191,11 @@ func main() {
 		if err != nil {
 			logger.Warn("proc scanner init failed", "err", err)
 		} else {
+			defer func() {
+				if err := procManager.Close(); err != nil {
+					logger.Warn("proc manager close", "err", err)
+				}
+			}()
 			var procCtx context.Context
 			procCtx, procCancel = context.WithCancel(context.Background())
 			go func() { _ = procManager.Run(procCtx) }()

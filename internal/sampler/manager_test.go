@@ -32,6 +32,7 @@ func TestManagerSubscribeAndReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager returned error: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -98,6 +99,7 @@ func TestManagerDropsOldestOnBackpressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager returned error: %v", err)
 	}
+	t.Cleanup(func() { _ = manager.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

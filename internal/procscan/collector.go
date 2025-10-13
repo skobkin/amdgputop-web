@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type rawProcess struct {
@@ -40,6 +41,8 @@ type collector struct {
 	lookup    *gpuLookup
 	logger    *slog.Logger
 	userCache map[int]string
+	closeOnce sync.Once
+	closeErr  error
 }
 
 type clientMemory struct {
@@ -357,4 +360,17 @@ func formatCmdline(data []byte) string {
 		return cmd[:256]
 	}
 	return cmd
+}
+
+func (c *collector) Close() error {
+	if c == nil {
+		return nil
+	}
+	c.closeOnce.Do(func() {
+		if c.procRoot != nil {
+			c.closeErr = c.procRoot.Close()
+			c.procRoot = nil
+		}
+	})
+	return c.closeErr
 }

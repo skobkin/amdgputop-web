@@ -2,6 +2,7 @@ package procscan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,6 +30,8 @@ type Manager struct {
 	subscribers map[string]map[*procSubscriber]struct{}
 	prevEngine  map[string]map[int]uint64
 	lastScan    time.Time
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 // NewManager constructs a process scanner manager.
@@ -73,7 +76,7 @@ func NewManager(cfg config.ProcConfig, procRoot string, gpus []gpu.Info, logger 
 func (m *Manager) Run(ctx context.Context) error {
 	if !m.cfg.Enable || len(m.gpuIDs) == 0 {
 		<-ctx.Done()
-		return nil
+		return m.Close()
 	}
 
 	m.logger.Info("process scanner started", "interval", m.cfg.ScanInterval)
@@ -86,7 +89,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			m.logger.Info("process scanner stopping", "reason", ctx.Err())
-			return nil
+			return m.Close()
 		case now := <-ticker.C:
 			m.performScan(now)
 		}
@@ -279,6 +282,20 @@ func (m *Manager) removeSubscriber(gpuID string, sub *procSubscriber) {
 		}
 	}
 	sub.close()
+}
+
+// Close releases any filesystem handles retained by the manager.
+func (m *Manager) Close() error {
+	m.closeOnce.Do(func() {
+		var errs []error
+		if m.collector != nil {
+			if err := m.collector.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close collector: %w", err))
+			}
+		}
+		m.closeErr = errors.Join(errs...)
+	})
+	return m.closeErr
 }
 
 func (m *Manager) knowsGPU(gpuID string) bool {

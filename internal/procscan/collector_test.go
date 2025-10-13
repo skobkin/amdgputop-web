@@ -35,7 +35,7 @@ func TestCollectorCollectsProcessMemoryAndEngine(t *testing.T) {
 		t.Fatalf("newCollector: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = coll.procRoot.Close()
+		_ = coll.Close()
 	})
 	coll.userCache[1000] = "alice"
 
@@ -136,7 +136,7 @@ drm-memory:
 		t.Fatalf("newCollector: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = coll.procRoot.Close()
+		_ = coll.Close()
 	})
 	coll.userCache[1000] = "bob"
 
@@ -199,7 +199,7 @@ drm-memory:
 		t.Fatalf("newCollector: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = coll.procRoot.Close()
+		_ = coll.Close()
 	})
 	coll.userCache[1000] = "carol"
 
