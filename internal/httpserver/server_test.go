@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/procscan"
 	"github.com/skobkin/amdgputop-web/internal/sampler"
 	"github.com/skobkin/amdgputop-web/internal/version"
-	"nhooyr.io/websocket"
 )
 
 func TestHealthzOK(t *testing.T) {

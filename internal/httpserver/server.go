@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"nhooyr.io/websocket"
 
 	"github.com/skobkin/amdgputop-web/internal/api"
 	"github.com/skobkin/amdgputop-web/internal/config"

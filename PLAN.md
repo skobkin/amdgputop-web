@@ -12,7 +12,7 @@ A lean, **read‑only** web UI for live AMD GPU telemetry inspired by [`amdgpu_t
 
 * **Go:** use the **latest stable Go** at project init and keep it updated (pin via `toolchain` in `go.mod`; CI matrix includes “stable”).
 * **Routing:** use **stdlib** (`net/http`, `http.ServeMux`, `http.Server`).
-* **Transport:** WebSocket for live updates (library: `nhooyr.io/websocket` — small, maintained).
+* **Transport:** WebSocket for live updates (library: `github.com/coder/websocket` — maintained fork of `nhooyr.io/websocket`).
 * **Frontend:** read‑only; allow GPU selection if multiple are present.
 * **Config:** entirely via **environment variables**.
 * **Docker:** must run with AMD device nodes mounted; degrade gracefully if some counters are missing.
@@ -37,7 +37,7 @@ Browser (Preact SPA)
 Go HTTP server (stdlib)
   - static assets (embed.FS)
   - REST endpoints
-  - WS upgrade (nhooyr)
+  - WS upgrade (`github.com/coder/websocket`)
   v
 WS Hub  <---->  GPU Samplers (one per GPU)
   - per-client subscription         - enumerate DRM cards via /sys
@@ -159,7 +159,7 @@ WS Hub  <---->  GPU Samplers (one per GPU)
 
 **WebSocket**
 
-* `nhooyr.io/websocket` w/ origin checks + read/write deadlines.
+* `github.com/coder/websocket` w/ origin checks + read/write deadlines.
 * Backpressure: bounded per‑client channel; drop oldest + emit error flag to client (never block producers).
 
 **GPU discovery & sampling**
@@ -397,7 +397,7 @@ docker run --rm -p 8080:8080 \
 * Process scanning can be expensive. Keep it **budgeted** and **coarse** (≥ 2s).
   Prioritize known GPU users; cap FDs inspected per PID.
 * **Truth bomb:** Inside a container without `--pid=host`, process top for host apps is **not possible**; don’t over‑engineer around this.
-* Gorilla/websocket is archived; stick with `nhooyr`.
+* Gorilla/websocket is archived; stick with `coder/websocket`.
 * Don’t rely on debugfs; use it only when present and readable.
 
 ---
