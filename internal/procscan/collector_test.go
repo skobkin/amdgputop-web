@@ -30,7 +30,13 @@ func TestCollectorCollectsProcessMemoryAndEngine(t *testing.T) {
 	lookup := newGPULookup(gpus, renderNodes)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	coll := newCollector(root, 10, 16, lookup, logger)
+	coll, err := newCollector(root, 10, 16, lookup, logger)
+	if err != nil {
+		t.Fatalf("newCollector: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = coll.procRoot.Close()
+	})
 	coll.userCache[1000] = "alice"
 
 	result, err := coll.collect()
@@ -125,7 +131,13 @@ drm-memory:
 	lookup := newGPULookup(gpus, renderNodes)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	coll := newCollector(root, 10, 16, lookup, logger)
+	coll, err := newCollector(root, 10, 16, lookup, logger)
+	if err != nil {
+		t.Fatalf("newCollector: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = coll.procRoot.Close()
+	})
 	coll.userCache[1000] = "bob"
 
 	result, err := coll.collect()
@@ -182,7 +194,13 @@ drm-memory:
 	lookup := newGPULookup(gpus, renderNodes)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	coll := newCollector(root, 10, 16, lookup, logger)
+	coll, err := newCollector(root, 10, 16, lookup, logger)
+	if err != nil {
+		t.Fatalf("newCollector: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = coll.procRoot.Close()
+	})
 	coll.userCache[1000] = "carol"
 
 	result, err := coll.collect()

@@ -2,7 +2,9 @@ package procscan
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/user"
@@ -32,7 +34,7 @@ type gpuCollection struct {
 }
 
 type collector struct {
-	procRoot  string
+	procRoot  *os.Root
 	maxPIDs   int
 	maxFDs    int
 	lookup    *gpuLookup
@@ -45,22 +47,27 @@ type clientMemory struct {
 	GTT  uint64
 }
 
-func newCollector(procRoot string, maxPIDs, maxFDs int, lookup *gpuLookup, logger *slog.Logger) *collector {
+func newCollector(procRoot string, maxPIDs, maxFDs int, lookup *gpuLookup, logger *slog.Logger) (*collector, error) {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	root, err := os.OpenRoot(procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("open proc root: %w", err)
+	}
+
 	return &collector{
-		procRoot:  procRoot,
+		procRoot:  root,
 		maxPIDs:   maxPIDs,
 		maxFDs:    maxFDs,
 		lookup:    lookup,
 		logger:    logger,
 		userCache: make(map[int]string),
-	}
+	}, nil
 }
 
 func (c *collector) collect() (map[string]gpuCollection, error) {
-	entries, err := os.ReadDir(c.procRoot)
+	entries, err := fs.ReadDir(c.procRoot.FS(), ".")
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +87,16 @@ func (c *collector) collect() (map[string]gpuCollection, error) {
 			continue
 		}
 
-		procPath := filepath.Join(c.procRoot, entry.Name())
-		procs := c.scanProcess(pid, procPath)
+		procDir, err := c.procRoot.OpenRoot(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		procs := c.scanProcess(pid, procDir)
+		if err := procDir.Close(); err != nil {
+			c.logger.Debug("failed to close proc dir", "pid", pid, "err", err)
+		}
+
 		if len(procs) == 0 {
 			continue
 		}
@@ -106,27 +121,26 @@ func (c *collector) collect() (map[string]gpuCollection, error) {
 	return results, nil
 }
 
-func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProcess {
-	comm, err := readTrimmed(filepath.Join(procPath, "comm"))
+func (c *collector) scanProcess(pid int, procDir *os.Root) map[string][]rawProcess {
+	comm, err := readTrimmed(procDir, "comm")
 	if err != nil {
 		return nil
 	}
 
-	cmdline, err := os.ReadFile(filepath.Join(procPath, "cmdline"))
+	cmdline, err := procDir.ReadFile("cmdline")
 	if err != nil {
 		cmdline = nil
 	}
 	command := formatCmdline(cmdline)
 
-	uid, err := readUID(filepath.Join(procPath, "status"))
+	uid, err := readUID(procDir, "status")
 	if err != nil {
 		return nil
 	}
 
 	userName := c.lookupUser(uid)
 
-	fdDir := filepath.Join(procPath, "fd")
-	fdEntries, err := os.ReadDir(fdDir)
+	fdEntries, err := fs.ReadDir(procDir.FS(), "fd")
 	if err != nil {
 		return nil
 	}
@@ -134,6 +148,7 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 	result := make(map[string]*rawProcess)
 	clientTotals := make(map[string]map[int]clientMemory)
 	fdCount := 0
+	fdBasePath := filepath.Join(procDir.Name(), "fd")
 
 	for _, fdEntry := range fdEntries {
 		if c.maxFDs > 0 && fdCount >= c.maxFDs {
@@ -142,8 +157,8 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 		fdCount++
 
 		fdName := fdEntry.Name()
-		fdPath := filepath.Join(fdDir, fdName)
-		target, err := os.Readlink(fdPath)
+		fdPath := filepath.Join("fd", fdName)
+		target, err := procDir.Readlink(fdPath)
 		if err != nil {
 			continue
 		}
@@ -151,7 +166,7 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 			target = strings.TrimSuffix(target, " (deleted)")
 		}
 		if !filepath.IsAbs(target) {
-			target = filepath.Clean(filepath.Join(fdDir, target))
+			target = filepath.Clean(filepath.Join(fdBasePath, target))
 		} else {
 			target = filepath.Clean(target)
 		}
@@ -161,8 +176,8 @@ func (c *collector) scanProcess(pid int, procPath string) map[string][]rawProces
 			continue
 		}
 
-		fdinfoPath := filepath.Join(procPath, "fdinfo", fdName)
-		data, err := os.ReadFile(fdinfoPath)
+		fdinfoPath := filepath.Join("fdinfo", fdName)
+		data, err := procDir.ReadFile(fdinfoPath)
 		if err != nil {
 			continue
 		}
@@ -289,16 +304,22 @@ func (l *gpuLookup) match(target string) (gpuEntry, bool) {
 	return gpuEntry{}, false
 }
 
-func readTrimmed(path string) (string, error) {
-	data, err := os.ReadFile(path)
+func readTrimmed(root *os.Root, name string) (string, error) {
+	if root == nil {
+		return "", fs.ErrNotExist
+	}
+	data, err := root.ReadFile(name)
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
 }
 
-func readUID(statusPath string) (int, error) {
-	data, err := os.ReadFile(statusPath)
+func readUID(root *os.Root, name string) (int, error) {
+	if root == nil {
+		return 0, fs.ErrNotExist
+	}
+	data, err := root.ReadFile(name)
 	if err != nil {
 		return 0, err
 	}

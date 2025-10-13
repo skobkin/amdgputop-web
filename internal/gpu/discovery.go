@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -31,11 +32,16 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 
-	drmPath := filepath.Join(root, drmClassPath)
-	entries, err := os.ReadDir(drmPath)
+	sysRoot, err := os.OpenRoot(root)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			logger.Warn("drm class path missing", "path", drmPath)
+		return nil, fmt.Errorf("open sysfs root: %w", err)
+	}
+	defer sysRoot.Close()
+
+	entries, err := fs.ReadDir(sysRoot.FS(), drmClassPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+			logger.Warn("drm class path missing", "path", filepath.Join(root, drmClassPath))
 			return nil, nil
 		}
 		return nil, fmt.Errorf("read drm class dir: %w", err)
@@ -58,8 +64,16 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 			continue
 		}
 
-		cardPath := filepath.Join(drmPath, name)
-		info, err := loadCardInfo(cardPath, root)
+		cardRoot, err := sysRoot.OpenRoot(filepath.Join(drmClassPath, name))
+		if err != nil {
+			logger.Warn("failed to open card root", "card", name, "err", err)
+			continue
+		}
+
+		info, err := loadCardInfo(name, cardRoot)
+		if err := cardRoot.Close(); err != nil {
+			logger.Debug("failed to close card root", "card", name, "err", err)
+		}
 		if err != nil {
 			logger.Warn("failed to load card info", "card", name, "err", err)
 			continue
@@ -70,11 +84,12 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 	return infos, nil
 }
 
-func loadCardInfo(cardPath, root string) (Info, error) {
-	id := filepath.Base(cardPath)
-
-	devicePath := filepath.Join(cardPath, "device")
-	ueventPath := filepath.Join(devicePath, "uevent")
+func loadCardInfo(cardID string, cardRoot *os.Root) (Info, error) {
+	deviceRoot, err := cardRoot.OpenRoot("device")
+	if err != nil {
+		return Info{}, fmt.Errorf("open device root: %w", err)
+	}
+	defer deviceRoot.Close()
 
 	var (
 		pciSlot   string
@@ -84,7 +99,7 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 		subDevice string
 	)
 
-	if data, err := os.ReadFile(ueventPath); err == nil {
+	if data, err := deviceRoot.ReadFile("uevent"); err == nil {
 		text := string(data)
 		pciSlot = parseKeyValue(text, "PCI_SLOT_NAME")
 		pciID = parseKeyValue(text, "PCI_ID")
@@ -103,22 +118,22 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 	}
 
 	if pciID == "" {
-		if vendor, err := readTrim(filepath.Join(devicePath, "vendor")); err == nil {
-			if device, err := readTrim(filepath.Join(devicePath, "device")); err == nil {
+		if vendor, err := readTrim(deviceRoot, "vendor"); err == nil {
+			if device, err := readTrim(deviceRoot, "device"); err == nil {
 				pciID = formatHexPair(vendor, device)
 			}
 		}
 	}
 
 	if name == "" {
-		name, _ = readTrim(filepath.Join(devicePath, "product_name"))
+		name, _ = readTrim(deviceRoot, "product_name")
 	}
 
 	if subVendor == "" {
-		subVendor, _ = readTrim(filepath.Join(devicePath, "subsystem_vendor"))
+		subVendor, _ = readTrim(deviceRoot, "subsystem_vendor")
 	}
 	if subDevice == "" {
-		subDevice, _ = readTrim(filepath.Join(devicePath, "subsystem_device"))
+		subDevice, _ = readTrim(deviceRoot, "subsystem_device")
 	}
 
 	vendorID, deviceID := splitPCIIdentifier(pciID)
@@ -127,10 +142,10 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 		name = resolved
 	}
 
-	renderNode := findRenderNode(devicePath)
+	renderNode := findRenderNode(deviceRoot)
 
 	return Info{
-		ID:         id,
+		ID:         cardID,
 		PCI:        pciSlot,
 		PCIID:      pciID,
 		Name:       name,
@@ -138,9 +153,14 @@ func loadCardInfo(cardPath, root string) (Info, error) {
 	}, nil
 }
 
-func findRenderNode(devicePath string) string {
-	drmSubdir := filepath.Join(devicePath, "drm")
-	entries, err := os.ReadDir(drmSubdir)
+func findRenderNode(deviceRoot *os.Root) string {
+	drmRoot, err := deviceRoot.OpenRoot("drm")
+	if err != nil {
+		return ""
+	}
+	defer drmRoot.Close()
+
+	entries, err := fs.ReadDir(drmRoot.FS(), ".")
 	if err != nil {
 		return ""
 	}
@@ -165,8 +185,8 @@ func parseKeyValue(data, key string) string {
 	return ""
 }
 
-func readTrim(path string) (string, error) {
-	data, err := os.ReadFile(path)
+func readTrim(root *os.Root, name string) (string, error) {
+	data, err := root.ReadFile(name)
 	if err != nil {
 		return "", err
 	}

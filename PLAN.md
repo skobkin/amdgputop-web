@@ -378,15 +378,15 @@ docker run --rm -p 8080:8080 \
 
 ### Phase 5 — Docker & Docs
 
-* [x] Multi‑stage Dockerfile; non‑root runtime.
+* [x] Multi-stage Dockerfile; non-root runtime.
 * [x] Doc device mounts; **note** process top requires `--pid=host` to see host PIDs.
-* [ ] Troubleshooting guide; permissions matrix.
+* [x] Troubleshooting guide; permissions matrix.
 
 ### Phase 6 — Polish
 
 * [ ] Accessibility pass; Lighthouse baseline.
 * [x] README with quickstart, env var table, screenshots.
-* [ ] Release v0.1.0 (host‑first); v0.2.0 (Docker validated).
+* [x] Release v0.1.0 (host‑first); v0.2.0 (Docker validated).
 
 ---
 

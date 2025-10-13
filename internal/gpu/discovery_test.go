@@ -104,7 +104,11 @@ func TestDiscoverFollowsSymlinks(t *testing.T) {
 	}
 
 	linkPath := filepath.Join(classPath, "card0")
-	if err := os.Symlink(target, linkPath); err != nil {
+	relTarget, err := filepath.Rel(classPath, target)
+	if err != nil {
+		t.Fatalf("filepath.Rel: %v", err)
+	}
+	if err := os.Symlink(relTarget, linkPath); err != nil {
 		t.Fatalf("symlink: %v", err)
 	}
 

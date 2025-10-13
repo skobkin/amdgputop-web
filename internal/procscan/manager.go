@@ -61,7 +61,11 @@ func NewManager(cfg config.ProcConfig, procRoot string, gpus []gpu.Info, logger 
 		subscribers: make(map[string]map[*procSubscriber]struct{}),
 		prevEngine:  make(map[string]map[int]uint64),
 	}
-	manager.collector = newCollector(procRoot, cfg.MaxPIDs, cfg.MaxFDsPerPID, manager.lookup, logger.With("component", "procscan_collector"))
+	coll, err := newCollector(procRoot, cfg.MaxPIDs, cfg.MaxFDsPerPID, manager.lookup, logger.With("component", "procscan_collector"))
+	if err != nil {
+		return nil, fmt.Errorf("init collector: %w", err)
+	}
+	manager.collector = coll
 	return manager, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"math"
 	"os"
@@ -29,14 +30,12 @@ const (
 
 // Reader fetches telemetry metrics for a single GPU.
 type Reader struct {
-	cardID       string
-	cardIndex    int
-	sysfsRoot    string
-	debugfsRoot  string
-	devicePath   string
-	debugCardDir string
-	hwmonPath    string
-	logger       *slog.Logger
+	cardID        string
+	cardIndex     int
+	logger        *slog.Logger
+	deviceRoot    *os.Root
+	debugCardRoot *os.Root
+	hwmonRoot     *os.Root
 }
 
 // NewReader constructs a Reader for the provided card identifier (e.g. "card0").
@@ -50,22 +49,34 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 		return nil, err
 	}
 
-	devicePath := filepath.Join(sysfsRoot, drmClassPath, cardID, "device")
-	if _, err := os.Stat(devicePath); err != nil {
-		return nil, fmt.Errorf("stat device path: %w", err)
+	sysRoot, err := os.OpenRoot(sysfsRoot)
+	if err != nil {
+		return nil, fmt.Errorf("open sysfs root: %w", err)
+	}
+	defer sysRoot.Close()
+
+	deviceRoot, err := sysRoot.OpenRoot(filepath.Join(drmClassPath, cardID, "device"))
+	if err != nil {
+		return nil, fmt.Errorf("open device root: %w", err)
 	}
 
-	hwmonPath := detectHwmon(devicePath)
+	var debugCardRoot *os.Root
+	if debugfsRoot != "" {
+		if dbgRoot, err := os.OpenRoot(debugfsRoot); err == nil {
+			defer dbgRoot.Close()
+			if sub, err := dbgRoot.OpenRoot(filepath.Join("dri", strconv.Itoa(cardIndex))); err == nil {
+				debugCardRoot = sub
+			}
+		}
+	}
 
 	reader := &Reader{
-		cardID:       cardID,
-		cardIndex:    cardIndex,
-		sysfsRoot:    sysfsRoot,
-		debugfsRoot:  debugfsRoot,
-		devicePath:   devicePath,
-		debugCardDir: filepath.Join(debugfsRoot, "dri", strconv.Itoa(cardIndex)),
-		hwmonPath:    hwmonPath,
-		logger:       logger.With("card", cardID),
+		cardID:        cardID,
+		cardIndex:     cardIndex,
+		logger:        logger.With("card", cardID),
+		deviceRoot:    deviceRoot,
+		debugCardRoot: debugCardRoot,
+		hwmonRoot:     detectHwmon(deviceRoot),
 	}
 
 	return reader, nil
@@ -76,23 +87,23 @@ func (r *Reader) Sample() Sample {
 	now := time.Now().UTC()
 	metrics := Metrics{}
 
-	metrics.GPUBusyPct = r.readPercent(filepath.Join(r.devicePath, gpuBusyFilename))
-	metrics.MemBusyPct = r.readPercent(filepath.Join(r.devicePath, memBusyFilename))
+	metrics.GPUBusyPct = r.readPercent(gpuBusyFilename)
+	metrics.MemBusyPct = r.readPercent(memBusyFilename)
 
 	metrics.SCLKMHz = r.readCurrentClock(ppDpmSclkFilename)
 	metrics.MCLKMHz = r.readCurrentClock(ppDpmMclkFilename)
 
-	metrics.VRAMUsedBytes = r.readUint(filepath.Join(r.devicePath, "mem_info_vram_used"))
-	metrics.VRAMTotalBytes = r.readUint(filepath.Join(r.devicePath, "mem_info_vram_total"))
-	metrics.GTTUsedBytes = r.readUint(filepath.Join(r.devicePath, "mem_info_gtt_used"))
-	metrics.GTTTotalBytes = r.readUint(filepath.Join(r.devicePath, "mem_info_gtt_total"))
+	metrics.VRAMUsedBytes = r.readUint("mem_info_vram_used")
+	metrics.VRAMTotalBytes = r.readUint("mem_info_vram_total")
+	metrics.GTTUsedBytes = r.readUint("mem_info_gtt_used")
+	metrics.GTTTotalBytes = r.readUint("mem_info_gtt_total")
 
-	if r.hwmonPath != "" {
-		metrics.TempC = r.readScaledFloat(filepath.Join(r.hwmonPath, hwmonTempFile), 1000)
-		metrics.FanRPM = r.readFloat(filepath.Join(r.hwmonPath, hwmonFanFile))
-		metrics.PowerW = r.readScaledFloat(filepath.Join(r.hwmonPath, hwmonPowerAverageFile), 1_000_000)
+	if r.hwmonRoot != nil {
+		metrics.TempC = r.readScaledFloat(r.hwmonRoot, hwmonTempFile, 1000)
+		metrics.FanRPM = r.readFloat(r.hwmonRoot, hwmonFanFile)
+		metrics.PowerW = r.readScaledFloat(r.hwmonRoot, hwmonPowerAverageFile, 1_000_000)
 		if metrics.PowerW == nil {
-			metrics.PowerW = r.readScaledFloat(filepath.Join(r.hwmonPath, hwmonPowerInputFile), 1_000_000)
+			metrics.PowerW = r.readScaledFloat(r.hwmonRoot, hwmonPowerInputFile, 1_000_000)
 		}
 	}
 
@@ -123,8 +134,8 @@ func (r *Reader) Sample() Sample {
 	}
 }
 
-func (r *Reader) readPercent(path string) *float64 {
-	value, err := r.readFloatValue(path)
+func (r *Reader) readPercent(name string) *float64 {
+	value, err := r.readFloatValue(r.deviceRoot, name)
 	if err != nil {
 		return nil
 	}
@@ -139,8 +150,7 @@ func (r *Reader) readPercent(path string) *float64 {
 }
 
 func (r *Reader) readCurrentClock(filename string) *float64 {
-	path := filepath.Join(r.devicePath, filename)
-	raw, err := os.ReadFile(path)
+	raw, err := r.deviceRoot.ReadFile(filename)
 	if err != nil {
 		return nil
 	}
@@ -160,7 +170,7 @@ func (r *Reader) readCurrentClock(filename string) *float64 {
 }
 
 func (r *Reader) readUint(path string) *uint64 {
-	data, err := os.ReadFile(path)
+	data, err := r.deviceRoot.ReadFile(path)
 	if err != nil {
 		return nil
 	}
@@ -176,24 +186,27 @@ func (r *Reader) readUint(path string) *uint64 {
 	return uint64Ptr(value)
 }
 
-func (r *Reader) readScaledFloat(path string, divisor float64) *float64 {
-	value, err := r.readFloatValue(path)
+func (r *Reader) readScaledFloat(root *os.Root, name string, divisor float64) *float64 {
+	value, err := r.readFloatValue(root, name)
 	if err != nil {
 		return nil
 	}
 	return float64Ptr(value / divisor)
 }
 
-func (r *Reader) readFloat(path string) *float64 {
-	value, err := r.readFloatValue(path)
+func (r *Reader) readFloat(root *os.Root, name string) *float64 {
+	value, err := r.readFloatValue(root, name)
 	if err != nil {
 		return nil
 	}
 	return float64Ptr(value)
 }
 
-func (r *Reader) readFloatValue(path string) (float64, error) {
-	data, err := os.ReadFile(path)
+func (r *Reader) readFloatValue(root *os.Root, name string) (float64, error) {
+	if root == nil {
+		return 0, fs.ErrNotExist
+	}
+	data, err := root.ReadFile(name)
 	if err != nil {
 		return 0, err
 	}
@@ -209,8 +222,10 @@ func (r *Reader) readFloatValue(path string) (float64, error) {
 }
 
 func (r *Reader) readDebugFSInfo() debugInfo {
-	path := filepath.Join(r.debugCardDir, debugPmInfoFilename)
-	data, err := os.ReadFile(path)
+	if r.debugCardRoot == nil {
+		return debugInfo{}
+	}
+	data, err := r.debugCardRoot.ReadFile(debugPmInfoFilename)
 	if err != nil {
 		return debugInfo{}
 	}
@@ -275,18 +290,30 @@ type debugInfo struct {
 	powerW  *float64
 }
 
-func detectHwmon(devicePath string) string {
-	hwmonRoot := filepath.Join(devicePath, "hwmon")
-	entries, err := os.ReadDir(hwmonRoot)
+func detectHwmon(deviceRoot *os.Root) *os.Root {
+	if deviceRoot == nil {
+		return nil
+	}
+
+	hwmonRoot, err := deviceRoot.OpenRoot("hwmon")
 	if err != nil {
-		return ""
+		return nil
+	}
+	defer hwmonRoot.Close()
+
+	entries, err := fs.ReadDir(hwmonRoot.FS(), ".")
+	if err != nil {
+		return nil
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
-			return filepath.Join(hwmonRoot, entry.Name())
+		if entry.IsDir() || entry.Type()&fs.ModeSymlink != 0 {
+			subRoot, err := hwmonRoot.OpenRoot(entry.Name())
+			if err == nil {
+				return subRoot
+			}
 		}
 	}
-	return ""
+	return nil
 }
 
 func parseCardIndex(cardID string) (int, error) {

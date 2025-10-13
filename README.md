@@ -62,6 +62,15 @@ docker run --rm -p 8080:8080 \
 Refer to `docs/DOCKER.md` for more detail, including why `--pid=host` is needed
 to observe host processes.
 
+### Troubleshooting & permissions
+
+- The [permissions matrix](docs/DOCKER.md#permissions-matrix) explains which
+  flags, groups, and capabilities are required for device-only metrics versus
+  host process telemetry.
+- If the UI shows empty process tables or partial metrics, consult the
+  [troubleshooting section](docs/DOCKER.md#troubleshooting) for the most common
+  container permission fixes.
+
 ## Configuration
 
 | Variable | Default | Description |
