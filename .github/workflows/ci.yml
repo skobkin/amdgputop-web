@@ -117,26 +117,30 @@ jobs:
         env:
           CURRENT_TAG: ${{ steps.vars.outputs.version }}
         run: |
-          PREVIOUS_TAG="$(git tag --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1 || true)"
+          CURRENT_COMMIT="$(git rev-list -n 1 "$CURRENT_TAG")"
+          PREVIOUS_TAG=""
+          if git rev-parse "${CURRENT_COMMIT}^" >/dev/null 2>&1; then
+            PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_COMMIT}^" 2>/dev/null || true)"
+          fi
           if [ -n "$PREVIOUS_TAG" ]; then
             CHANGELOG="$(git log --no-merges --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${CURRENT_TAG}")"
             if [ -z "$CHANGELOG" ]; then
               CHANGELOG="- No changes since ${PREVIOUS_TAG}."
             fi
             {
-              echo "body<<'EOF'"
+              echo "body<<EOF"
               echo "## Changes"
-              echo ""
+              printf '\n'
               printf '%s\n' "$CHANGELOG"
-              echo ""
+              printf '\n'
               echo "[Compare ${PREVIOUS_TAG}...${CURRENT_TAG}](https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${CURRENT_TAG})"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
             {
-              echo "body<<'EOF'"
+              echo "body<<EOF"
               echo "## Changes"
-              echo ""
+              printf '\n'
               echo "- Initial release."
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
