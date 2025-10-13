@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import GpuSelector from '@/components/GpuSelector';
 import StatsTiles from '@/components/StatsTiles';
 import MemoryBars from '@/components/MemoryBars';
 import ProcTable from '@/components/ProcTable';
 import { useAppStore, type UIScale } from './store';
-import type { ServerMessage, StatsSample, ProcSnapshot } from './types';
+import {
+  createVersionInfo,
+  type ServerMessage,
+  type StatsSample,
+  type ProcSnapshot,
+  type VersionInfo,
+  type VersionInfoPayload
+} from './types';
 import { formatTimeAgo } from './lib/format';
 
 const WS_RECONNECT_DELAY_MS = 2000;
@@ -39,10 +46,30 @@ const App = () => {
   const reconnectTimerRef = useRef<number | null>(null);
   const heartbeatTimerRef = useRef<number | null>(null);
   const selectedGpuIdRef = useRef<string | null>(null);
+  const versionRef = useRef<VersionInfo | null>(null);
+  const hasConnectedRef = useRef(false);
+
+  const fetchVersionInfo = useCallback(async (): Promise<VersionInfo | null> => {
+    try {
+      const res = await fetch('/api/version', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const payload = createVersionInfo((await res.json()) as VersionInfoPayload);
+      return payload;
+    } catch (err) {
+      console.warn('Unable to load version info', err);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     selectedGpuIdRef.current = selectedGpuId;
   }, [selectedGpuId]);
+
+  useEffect(() => {
+    versionRef.current = version;
+  }, [version]);
 
   // Fetch GPU list via REST so UI can render before WS hello arrives.
   useEffect(() => {
@@ -77,24 +104,16 @@ const App = () => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      try {
-        const res = await fetch('/api/version');
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const payload = await res.json();
-        if (!cancelled) {
-          setVersion(payload);
-        }
-      } catch (err) {
-        console.warn('Unable to load version info', err);
+      const payload = await fetchVersionInfo();
+      if (!cancelled && payload) {
+        setVersion(payload);
       }
     };
     load();
     return () => {
       cancelled = true;
     };
-  }, [setVersion]);
+  }, [fetchVersionInfo, setVersion]);
 
   // WebSocket lifecycle.
   useEffect(() => {
@@ -148,6 +167,8 @@ const App = () => {
         wsRef.current = socket;
 
         socket.onopen = () => {
+          const wasConnected = hasConnectedRef.current;
+          hasConnectedRef.current = true;
           setConnection('open');
           const gpuId = selectedGpuIdRef.current;
           if (gpuId) {
@@ -164,6 +185,21 @@ const App = () => {
               socket.send(JSON.stringify({ type: 'ping' }));
             }
           }, WS_HEARTBEAT_INTERVAL_MS);
+
+          void (async () => {
+            const payload = await fetchVersionInfo();
+            if (!payload || stop) {
+              return;
+            }
+            if (wasConnected) {
+              const current = versionRef.current;
+              if (current && !current.isEqual(payload)) {
+                window.location.reload();
+                return;
+              }
+            }
+            setVersion(payload);
+          })();
         };
 
         socket.onmessage = (event: MessageEvent<string>) => {
@@ -226,7 +262,7 @@ const App = () => {
       wsRef.current = null;
       socket?.close(1000, 'shutdown');
     };
-  }, [setConnection, setError, setFeatures, setGPUs, setSampleInterval, updateProcs, updateStats]);
+  }, [fetchVersionInfo, setConnection, setError, setFeatures, setGPUs, setSampleInterval, setVersion, updateProcs, updateStats]);
 
   // Resubscribe whenever selection changes.
   useEffect(() => {

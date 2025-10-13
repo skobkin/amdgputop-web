@@ -72,8 +72,29 @@ export type ServerMessage = HelloMessage | StatsSample | ProcSnapshot | ErrorMes
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
-export interface VersionInfo {
+export interface VersionInfoPayload {
   version: string;
   commit: string;
   build_time: string;
+}
+
+export interface VersionInfo extends VersionInfoPayload {
+  isEqual(other: VersionInfo | null | undefined): boolean;
+}
+
+export function createVersionInfo(payload: VersionInfoPayload): VersionInfo {
+  const normalized: VersionInfo = {
+    ...payload,
+    isEqual(other) {
+      if (!other) {
+        return false;
+      }
+      return (
+        normalized.version === other.version &&
+        normalized.commit === other.commit &&
+        normalized.build_time === other.build_time
+      );
+    }
+  };
+  return normalized;
 }
