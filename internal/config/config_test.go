@@ -16,7 +16,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ListenAddr != ":8080" {
 		t.Fatalf("unexpected ListenAddr %q", cfg.ListenAddr)
 	}
-	if cfg.SampleInterval != 250*time.Millisecond {
+	if cfg.SampleInterval != 2*time.Second {
 		t.Fatalf("unexpected SampleInterval %s", cfg.SampleInterval)
 	}
 	if cfg.LogLevel != slog.LevelInfo {

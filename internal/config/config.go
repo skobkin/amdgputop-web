@@ -44,7 +44,7 @@ type ProcConfig struct {
 func Load() (Config, error) {
 	cfg := Config{
 		ListenAddr:       ":8080",
-		SampleInterval:   250 * time.Millisecond,
+		SampleInterval:   2 * time.Second,
 		AllowedOrigins:   []string{"*"},
 		DefaultGPU:       "auto",
 		EnablePrometheus: false,

@@ -118,7 +118,7 @@ WS Hub  <---->  GPU Samplers (one per GPU)
     * `{"type":"subscribe","gpu_id":"card0"}`
 * Server → Client:
 
-    * `{"type":"hello","interval_ms":250,"gpus":[...],"features":{"procs":true}}`
+    * `{"type":"hello","interval_ms":2000,"gpus":[...],"features":{"procs":true}}`
     * `{"type":"stats",...}` (every tick)
     * `{"type":"procs",...}` (separate cadence, e.g. 1–2s)
     * `{"type":"error","message":"..."}`
@@ -197,7 +197,7 @@ WS Hub  <---->  GPU Samplers (one per GPU)
 **Configuration (env)**
 
 * `APP_LISTEN_ADDR` = `:8080`
-* `APP_SAMPLE_INTERVAL` = `250ms` (100ms–2s bounds)
+* `APP_SAMPLE_INTERVAL` = `2s` (tunable via Go duration string)
 * `APP_ALLOWED_ORIGINS` = `*` (dev); tighten in prod
 * `APP_DEFAULT_GPU` = `auto` | `cardN`
 * `APP_ENABLE_PROMETHEUS` = `false`
@@ -479,9 +479,9 @@ func scanPid(pid int, limits Limits) (ProcUsage, bool) {
 ## 10) Environment Variables (quick reference)
 
 | Var                        | Default             | Notes                  |
-| -------------------------- | ------------------- | ---------------------- |
+| -------------------------- |---------------------| ---------------------- |
 | `APP_LISTEN_ADDR`          | `:8080`             | HTTP/WS listen         |
-| `APP_SAMPLE_INTERVAL`      | `250ms`             | GPU sampling cadence   |
+| `APP_SAMPLE_INTERVAL`      | `2s`                | GPU sampling cadence   |
 | `APP_ALLOWED_ORIGINS`      | `*`                 | CORS; restrict in prod |
 | `APP_DEFAULT_GPU`          | `auto`              | Initial selection      |
 | `APP_ENABLE_PROMETHEUS`    | `false`             | `/metrics`             |

@@ -995,7 +995,7 @@ func waitFor(t *testing.T, timeout time.Duration, condition func() bool) {
 func defaultTestConfig() config.Config {
 	return config.Config{
 		ListenAddr:     ":0",
-		SampleInterval: 250 * time.Millisecond,
+		SampleInterval: 2 * time.Second,
 		AllowedOrigins: []string{"*"},
 		DefaultGPU:     "auto",
 		ProcRoot:       "/proc",

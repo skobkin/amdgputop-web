@@ -76,7 +76,7 @@ to observe host processes.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `APP_LISTEN_ADDR` | `:8080` | HTTP listen address. |
-| `APP_SAMPLE_INTERVAL` | `250ms` | Metrics sampling cadence (100ms – 2s). |
+| `APP_SAMPLE_INTERVAL` | `2s` | Metrics sampling cadence. |
 | `APP_ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed for WebSocket/HTTP. |
 | `APP_DEFAULT_GPU` | `auto` | GPU pre-selected on connect (`auto` = first detected). |
 | `APP_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`). |

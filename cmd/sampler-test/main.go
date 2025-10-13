@@ -140,7 +140,7 @@ func main() {
 	if len(readers) > 0 {
 		interval := baseCfg.SampleInterval
 		if interval <= 0 {
-			interval = 250 * time.Millisecond
+			interval = 2 * time.Second
 		}
 		managerLogger := logger.With("component", "sampler")
 		samplerManager, err = sampler.NewManager(interval, readers, managerLogger)
@@ -184,7 +184,7 @@ func main() {
 		procLogger := logger.With("component", "procscan")
 		procCfg := opts.procCfg
 		if procCfg.ScanInterval <= 0 {
-			procCfg.ScanInterval = 250 * time.Millisecond
+			procCfg.ScanInterval = 2 * time.Second
 		}
 
 		procManager, err = procscan.NewManager(procCfg, opts.procRoot, selected, procLogger)
