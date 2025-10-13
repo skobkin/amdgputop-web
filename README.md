@@ -47,11 +47,16 @@ docker run --rm -p 8080:8080 \
   --device=/dev/kfd \
   --group-add "${VID_GID}" \
   --group-add "${RENDER_GID}" \
+  -v "/usr/share/hwdata/pci.ids:/usr/share/hwdata/pci.ids:ro" \
   --pid=host \
   --cap-add SYS_PTRACE \
   --user root \
   amdgputop-web:dev
 ```
+
+> **GPU names**: the runtime resolves PCI IDs via `/usr/share/hwdata/pci.ids`.
+> If your distribution stores the database elsewhere (e.g. `/usr/share/misc/pci.ids`),
+> adjust the bind mount path accordingly.
 
 > **Why root + `SYS_PTRACE`?** Reading `/proc/<pid>/fdinfo` for host workloads
 > requires elevated privileges and the `CAP_SYS_PTRACE` capability. Running the
