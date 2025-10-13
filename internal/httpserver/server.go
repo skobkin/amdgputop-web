@@ -655,6 +655,10 @@ func (s *Server) registerPrometheus(mux *http.ServeMux) {
 		}),
 	}
 
+	if gpuCollector := newGPUMetricsCollector(s.gpus, s.sampler); gpuCollector != nil {
+		collectors = append(collectors, gpuCollector)
+	}
+
 	for _, collector := range collectors {
 		registry.MustRegister(collector)
 	}

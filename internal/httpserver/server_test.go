@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/skobkin/amdgputop-web/internal/config"
 	"github.com/skobkin/amdgputop-web/internal/gpu"
 	"github.com/skobkin/amdgputop-web/internal/procscan"
@@ -204,10 +208,49 @@ func TestAPIDocsServed(t *testing.T) {
 func TestPrometheusMetrics(t *testing.T) {
 	t.Parallel()
 
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	sysfsRoot := t.TempDir()
+	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "12\n")
+	writeFile(t, filepath.Join(devicePath, "mem_busy_percent"), "24\n")
+	writeFile(t, filepath.Join(devicePath, "pp_dpm_sclk"), "0: 1200Mhz *\n")
+	writeFile(t, filepath.Join(devicePath, "pp_dpm_mclk"), "0: 800Mhz *\n")
+	writeFile(t, filepath.Join(devicePath, "mem_info_vram_used"), "1048576\n")
+	writeFile(t, filepath.Join(devicePath, "mem_info_vram_total"), "4194304\n")
+	writeFile(t, filepath.Join(devicePath, "mem_info_gtt_used"), "524288\n")
+	writeFile(t, filepath.Join(devicePath, "mem_info_gtt_total"), "8388608\n")
+
+	hwmonRoot := filepath.Join(devicePath, "hwmon", "hwmon0")
+	if err := os.MkdirAll(hwmonRoot, 0o755); err != nil {
+		t.Fatalf("mkdir hwmon: %v", err)
+	}
+	writeFile(t, filepath.Join(hwmonRoot, "temp1_input"), "43000\n")
+	writeFile(t, filepath.Join(hwmonRoot, "fan1_input"), "1500\n")
+	writeFile(t, filepath.Join(hwmonRoot, "power1_average"), "25000000\n")
+
+	reader, err := sampler.NewReader("card0", sysfsRoot, "", logger)
+	if err != nil {
+		t.Fatalf("NewReader: %v", err)
+	}
+
+	manager, err := sampler.NewManager(50*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	t.Cleanup(func() { _ = manager.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = manager.Run(ctx) }()
+
+	waitFor(t, 2*time.Second, manager.Ready)
+
 	cfg := defaultTestConfig()
 	cfg.EnablePrometheus = true
+	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/metrics")
@@ -225,8 +268,57 @@ func TestPrometheusMetrics(t *testing.T) {
 		t.Fatalf("read body: %v", err)
 	}
 
-	if !strings.Contains(string(body), "amdgputop_ws_active_connections") {
-		t.Fatalf("metrics response missing ws gauge: %s", string(body))
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "amdgputop_ws_active_connections") {
+		t.Fatalf("metrics response missing ws gauge: %s", bodyStr)
+	}
+
+	parser := expfmt.NewTextParser(model.LegacyValidation)
+	families, err := parser.TextToMetricFamilies(bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("parse metrics: %v", err)
+	}
+
+	const gpuID = "card0"
+
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_busy_percent", gpuID); got != 12 {
+		t.Fatalf("unexpected busy percent: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_mem_busy_percent", gpuID); got != 24 {
+		t.Fatalf("unexpected mem busy percent: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_sclk_mhz", gpuID); got != 1200 {
+		t.Fatalf("unexpected sclk: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_mclk_mhz", gpuID); got != 800 {
+		t.Fatalf("unexpected mclk: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_temperature_celsius", gpuID); got != 43 {
+		t.Fatalf("unexpected temperature: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_fan_rpm", gpuID); got != 1500 {
+		t.Fatalf("unexpected fan rpm: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_power_watts", gpuID); got != 25 {
+		t.Fatalf("unexpected power: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_used_bytes", gpuID); got != 1048576 {
+		t.Fatalf("unexpected vram used: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_total_bytes", gpuID); got != 4194304 {
+		t.Fatalf("unexpected vram total: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_used_bytes", gpuID); got != 524288 {
+		t.Fatalf("unexpected gtt used: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_total_bytes", gpuID); got != 8388608 {
+		t.Fatalf("unexpected gtt total: %v", got)
+	}
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_sample_timestamp_seconds", gpuID); got == 0 {
+		t.Fatalf("expected sample timestamp, got 0")
+	}
+	if age := metricGaugeValue(t, families, "amdgputop_gpu_sample_age_seconds", gpuID); age > 5 {
+		t.Fatalf("unexpected sample age: %v", age)
 	}
 }
 
@@ -1011,6 +1103,27 @@ func defaultTestConfig() config.Config {
 			MaxFDsPerPID: 64,
 		},
 	}
+}
+
+func metricGaugeValue(t *testing.T, families map[string]*dto.MetricFamily, name, gpuID string) float64 {
+	t.Helper()
+	family, ok := families[name]
+	if !ok {
+		t.Fatalf("metric %s missing", name)
+	}
+	for _, metric := range family.Metric {
+		for _, label := range metric.Label {
+			if label.GetName() != "gpu_id" || label.GetValue() != gpuID {
+				continue
+			}
+			if metric.Gauge == nil || metric.Gauge.Value == nil {
+				t.Fatalf("metric %s missing gauge value for gpu %s", name, gpuID)
+			}
+			return metric.Gauge.GetValue()
+		}
+	}
+	t.Fatalf("metric %s missing gpu_id=%s", name, gpuID)
+	return 0
 }
 
 func toWebsocketURL(httpURL string) string {

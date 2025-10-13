@@ -15,6 +15,7 @@ Preact single-page app.
   deltas when exposed by the kernel.
 - REST endpoints for `/api/gpus`, `/api/gpus/<id>/metrics`, and `/api/gpus/<id>/procs`
   alongside a WebSocket feed (`/ws`).
+- Optional Prometheus `/metrics` export with per-GPU telemetry (no per-process data).
 - Configuration via environment variables (`APP_*`), including sampler cadence,
   process scanner limits, and allowed origins.
 
@@ -80,7 +81,7 @@ to observe host processes.
 | `APP_ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed for WebSocket/HTTP. |
 | `APP_DEFAULT_GPU` | `auto` | GPU pre-selected on connect (`auto` = first detected). |
 | `APP_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`). |
-| `APP_ENABLE_PROMETHEUS` | `false` | Enable `/metrics` endpoint when `true`. |
+| `APP_ENABLE_PROMETHEUS` | `false` | Enable `/metrics` endpoint with per-GPU telemetry when `true`. |
 | `APP_ENABLE_PPROF` | `false` | Expose Go pprof handlers on `/debug/pprof/*`. |
 | `APP_PROC_ENABLE` | `true` | Toggle process scanner feature. |
 | `APP_PROC_SCAN_INTERVAL` | `2s` | Interval between process snapshot scans. |
@@ -88,6 +89,19 @@ to observe host processes.
 
 See `internal/config/config.go` for the full list, including test-only roots
 (`APP_SYSFS_ROOT`, `APP_DEBUGFS_ROOT`, `APP_PROC_ROOT`).
+
+## Prometheus
+
+Set `APP_ENABLE_PROMETHEUS=true` to expose `GET /metrics`. The exporter
+publishes WebSocket counters along with the latest per-GPU telemetry pulled from
+the sampler. Each gauge is labeled with `gpu_id` and includes:
+
+- Busy percentages for graphics and memory engines.
+- Current SCLK/MCLK frequencies, temperature, fan RPM, and power draw.
+- VRAM/GTT usage and capacity.
+- Timestamps and age for the most recent sample.
+
+Per-process statistics stay out of the Prometheus surface area.
 
 ## Development
 

@@ -34,12 +34,13 @@
       <p>Frontend build is not yet available. This placeholder page confirms static asset serving works.</p>
       <p>API endpoints:</p>
       <ul>
-        <li><code>/api/gpus</code></li>
-        <li><code>/api/gpus/&lt;gpu_id&gt;/metrics</code></li>
-        <li><code>/api/gpus/&lt;gpu_id&gt;/procs</code></li>
-        <li><code>/healthz</code> and <code>/readyz</code></li>
-        <li><code>/api/version</code></li>
-        <li><code>/ws</code></li>
+        <li><a href="/api/gpus"><code>GET /api/gpus</code></a></li>
+        <li><a href="/api/gpus/{gpu_id}/metrics"><code>GET /api/gpus/{gpu_id}/metrics</code></a></li>
+        <li><a href="/api/gpus/{gpu_id}/procs"><code>GET /api/gpus/{gpu_id}/procs</code></a></li>
+        <li><a href="/healthz"><code>GET /healthz</code></a> and <a href="/readyz"><code>GET /readyz</code></a></li>
+        <li><a href="/api/version"><code>GET /api/version</code></a></li>
+        <li><a href="/ws"><code>GET /ws</code></a></li>
+        <li><a href="/metrics"><code>GET /metrics</code></a> <span>(Prometheus; enable via <code>APP_ENABLE_PROMETHEUS</code>)</span></li>
       </ul>
     </main>
   </body>
