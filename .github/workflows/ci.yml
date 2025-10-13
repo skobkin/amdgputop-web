@@ -112,6 +112,36 @@ jobs:
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
           echo "build_time=$BUILD_TIME" >> "$GITHUB_OUTPUT"
 
+      - name: Generate changelog
+        id: changelog
+        env:
+          CURRENT_TAG: ${{ steps.vars.outputs.version }}
+        run: |
+          PREVIOUS_TAG="$(git tag --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1 || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG="$(git log --no-merges --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${CURRENT_TAG}")"
+            if [ -z "$CHANGELOG" ]; then
+              CHANGELOG="- No changes since ${PREVIOUS_TAG}."
+            fi
+            {
+              echo "body<<'EOF'"
+              echo "## Changes"
+              echo ""
+              printf '%s\n' "$CHANGELOG"
+              echo ""
+              echo "[Compare ${PREVIOUS_TAG}...${CURRENT_TAG}](https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${CURRENT_TAG})"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "body<<'EOF'"
+              echo "## Changes"
+              echo ""
+              echo "- Initial release."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build release binary
         run: |
           mkdir -p dist
@@ -153,5 +183,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: amdgputop-web_${{ steps.vars.outputs.version }}_linux_amd64.tar.gz
+          body: ${{ steps.changelog.outputs.body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
