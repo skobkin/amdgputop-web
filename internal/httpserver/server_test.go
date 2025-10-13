@@ -65,6 +65,38 @@ func TestHealthzOK(t *testing.T) {
 
 }
 
+func TestStaticIndexOnlyServedAtRoot(t *testing.T) {
+	t.Parallel()
+
+	_, ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 for /, got %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(body), `id="root"`) {
+		t.Fatalf("index body missing root element")
+	}
+
+	resp404, err := http.Get(ts.URL + "/not-a-route")
+	if err != nil {
+		t.Fatalf("GET /not-a-route failed: %v", err)
+	}
+	resp404.Body.Close()
+	if resp404.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown route, got %d", resp404.StatusCode)
+	}
+}
+
 func TestReadyzStates(t *testing.T) {
 	t.Parallel()
 

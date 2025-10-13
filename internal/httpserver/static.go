@@ -37,7 +37,6 @@ func (s *Server) staticHandler() http.Handler {
 			return
 		}
 
-		// Serve static files for exact matches; fallback to index.html otherwise.
 		normalized := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if normalized == "" {
 			serveIndex()
@@ -54,7 +53,7 @@ func (s *Server) staticHandler() http.Handler {
 			return
 		}
 
-		serveIndex()
+		http.NotFound(w, r)
 	})
 }
 
