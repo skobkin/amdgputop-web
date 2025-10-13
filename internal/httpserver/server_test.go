@@ -229,8 +229,8 @@ func TestAPIDocsServed(t *testing.T) {
 		t.Fatalf("read body: %v", err)
 	}
 	content := string(body)
-	if !strings.Contains(content, "quick reference") {
-		t.Fatalf("api docs quick reference missing")
+	if !strings.Contains(content, "API Reference") {
+		t.Fatalf("api docs header missing")
 	}
 	if !strings.Contains(content, "/api/gpus") {
 		t.Fatalf("api docs missing endpoint list")
