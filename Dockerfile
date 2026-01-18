@@ -45,10 +45,10 @@ RUN mkdir -p /out && \
 ###############################################################################
 # Runtime stage (Alpine, non-root)
 ###############################################################################
-FROM alpine:3.20 AS runtime
+FROM alpine:3.23 AS runtime
 
 RUN addgroup -S app && adduser -S -G app app && \
-    apk add --no-cache ca-certificates
+    apk add --no-cache ca-certificates wget
 
 WORKDIR /home/app
 
@@ -56,6 +56,9 @@ COPY --from=backend /out/amdgputop-web /usr/local/bin/amdgputop-web
 
 ENV APP_LISTEN_ADDR=:8080
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 
 USER app
 ENTRYPOINT ["/usr/local/bin/amdgputop-web"]
