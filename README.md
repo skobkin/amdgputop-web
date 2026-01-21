@@ -22,9 +22,16 @@ Preact single-page app.
 ## Quick Start (host build)
 
 ```bash
+cd web && npm ci && npm run build
 go build ./cmd/amdgputop-web
 ./amdgputop-web            # listens on :8080 by default
+
+# Alternatively, run the default build pipeline:
+# make
 ```
+
+The frontend build output is generated into `internal/httpserver/assets/` and is
+embedded at compile time; those files are not committed to the repository.
 
 On AMD hardware you can sanity-check the sampler without the web UI:
 
