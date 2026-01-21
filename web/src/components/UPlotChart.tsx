@@ -61,6 +61,8 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       title: null,
       width: 0,
       height,
+      // We feed timestamps in milliseconds (Date.parse / Date.now).
+      ms: 1,
       scales: {
         x: {
           time: true
