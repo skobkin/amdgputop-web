@@ -14,10 +14,17 @@ interface Props {
   valueFormatter: (value: number | null) => string;
 }
 
-const formatTime = new Intl.DateTimeFormat(undefined, {
+const formatTooltipTime = new Intl.DateTimeFormat(undefined, {
+  month: 'numeric',
+  day: 'numeric',
+  year: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit'
+});
+const formatXAxisTime = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit'
 });
 
 const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props) => {
@@ -45,7 +52,7 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
             return;
           }
           setTooltip({
-            time: formatTime.format(new Date(ts)),
+            time: formatTooltipTime.format(new Date(ts)),
             value: valueFormatter(val ?? null)
           });
         }
@@ -74,6 +81,8 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       axes: [
         {
           stroke: 'rgba(241, 245, 249, 0.85)',
+          values: (_u: any, ticks: number[]) =>
+            ticks.map((tick) => formatXAxisTime.format(new Date(tick))),
           grid: {
             stroke: 'rgba(255, 255, 255, 0.12)'
           }
