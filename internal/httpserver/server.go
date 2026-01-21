@@ -319,9 +319,19 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	outbound := newWSOutbound(wsSendQueueSize, &s.wsDropped)
 
 	features := map[string]bool{
-		"procs": s.proc != nil,
+		"procs":  s.proc != nil,
+		"charts": s.cfg.Charts.Enable,
 	}
-	hello := api.NewHelloMessage(int(s.cfg.SampleInterval/time.Millisecond), s.gpus, features)
+	chartsMaxPoints := 0
+	if s.cfg.Charts.Enable {
+		chartsMaxPoints = s.cfg.Charts.MaxPoints
+	}
+	hello := api.NewHelloMessage(
+		int(s.cfg.SampleInterval/time.Millisecond),
+		s.gpus,
+		features,
+		chartsMaxPoints,
+	)
 
 	ctx, cancel := context.WithCancel(r.Context())
 

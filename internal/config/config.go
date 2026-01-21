@@ -23,6 +23,7 @@ type Config struct {
 	ProcRoot         string
 	WS               WebsocketConfig
 	Proc             ProcConfig
+	Charts           ChartsConfig
 }
 
 // WebsocketConfig captures tunables for WebSocket handling.
@@ -38,6 +39,12 @@ type ProcConfig struct {
 	ScanInterval time.Duration
 	MaxPIDs      int
 	MaxFDsPerPID int
+}
+
+// ChartsConfig contains settings for front-end charts.
+type ChartsConfig struct {
+	Enable    bool
+	MaxPoints int
 }
 
 // Load parses configuration from environment variables, applying defaults.
@@ -63,6 +70,10 @@ func Load() (Config, error) {
 			ScanInterval: 2 * time.Second,
 			MaxPIDs:      5000,
 			MaxFDsPerPID: 64,
+		},
+		Charts: ChartsConfig{
+			Enable:    true,
+			MaxPoints: 7200,
 		},
 	}
 
@@ -201,6 +212,25 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("APP_PROC_MAX_FDS_PER_PID must be > 0")
 		}
 		cfg.Proc.MaxFDsPerPID = maxFDs
+	}
+
+	if value := strings.TrimSpace(os.Getenv("APP_CHARTS_ENABLE")); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse APP_CHARTS_ENABLE: %w", err)
+		}
+		cfg.Charts.Enable = enabled
+	}
+
+	if value := strings.TrimSpace(os.Getenv("APP_CHARTS_MAX_POINTS")); value != "" {
+		maxPoints, err := strconv.Atoi(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse APP_CHARTS_MAX_POINTS: %w", err)
+		}
+		if maxPoints <= 0 {
+			return Config{}, fmt.Errorf("APP_CHARTS_MAX_POINTS must be > 0")
+		}
+		cfg.Charts.MaxPoints = maxPoints
 	}
 
 	return cfg, nil

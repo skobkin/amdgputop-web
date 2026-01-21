@@ -909,6 +909,12 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 	if procs, ok := features["procs"].(bool); !ok || !procs {
 		t.Fatalf("expected procs feature true")
 	}
+	if charts, ok := features["charts"].(bool); !ok || !charts {
+		t.Fatalf("expected charts feature true")
+	}
+	if maxPoints, ok := helloMsg["charts_max_points"].(float64); !ok || int(maxPoints) != cfg.Charts.MaxPoints {
+		t.Fatalf("expected charts max points %d", cfg.Charts.MaxPoints)
+	}
 
 	gotStats := false
 	gotProcs := false
@@ -1133,6 +1139,10 @@ func defaultTestConfig() config.Config {
 			ScanInterval: 2 * time.Second,
 			MaxPIDs:      5000,
 			MaxFDsPerPID: 64,
+		},
+		Charts: config.ChartsConfig{
+			Enable:    true,
+			MaxPoints: 7200,
 		},
 	}
 }

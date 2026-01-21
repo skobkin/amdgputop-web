@@ -34,6 +34,12 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.Proc.Enable {
 		t.Fatalf("expected process scanner enabled by default")
 	}
+	if !cfg.Charts.Enable {
+		t.Fatalf("expected charts enabled by default")
+	}
+	if cfg.Charts.MaxPoints != 7200 {
+		t.Fatalf("unexpected charts max points %d", cfg.Charts.MaxPoints)
+	}
 }
 
 func TestLoadEnvOverrides(t *testing.T) {
@@ -54,6 +60,8 @@ func TestLoadEnvOverrides(t *testing.T) {
 	t.Setenv("APP_PROC_SCAN_INTERVAL", "5s")
 	t.Setenv("APP_PROC_MAX_PIDS", "128")
 	t.Setenv("APP_PROC_MAX_FDS_PER_PID", "32")
+	t.Setenv("APP_CHARTS_ENABLE", "false")
+	t.Setenv("APP_CHARTS_MAX_POINTS", "12000")
 
 	cfg, err := Load()
 	if err != nil {
@@ -112,6 +120,12 @@ func TestLoadEnvOverrides(t *testing.T) {
 	if cfg.Proc.MaxFDsPerPID != 32 {
 		t.Fatalf("Proc.MaxFDsPerPID override failed, got %d", cfg.Proc.MaxFDsPerPID)
 	}
+	if cfg.Charts.Enable {
+		t.Fatalf("Charts.Enable override failed, expected false")
+	}
+	if cfg.Charts.MaxPoints != 12000 {
+		t.Fatalf("Charts.MaxPoints override failed, got %d", cfg.Charts.MaxPoints)
+	}
 }
 
 func TestLoadInvalidEnv(t *testing.T) {
@@ -135,6 +149,9 @@ func TestLoadInvalidEnv(t *testing.T) {
 		{"NonPositiveProcMaxPIDs", "APP_PROC_MAX_PIDS", "0"},
 		{"InvalidProcMaxFDs", "APP_PROC_MAX_FDS_PER_PID", "lots"},
 		{"NonPositiveProcMaxFDs", "APP_PROC_MAX_FDS_PER_PID", "-1"},
+		{"InvalidChartsEnable", "APP_CHARTS_ENABLE", "maybe"},
+		{"InvalidChartsMaxPoints", "APP_CHARTS_MAX_POINTS", "huge"},
+		{"NonPositiveChartsMaxPoints", "APP_CHARTS_MAX_POINTS", "0"},
 	}
 
 	for _, tc := range testCases {
