@@ -8,6 +8,7 @@ This project maintains a repeatable accessibility audit and Lighthouse baseline 
 - Command:
   ```bash
   cd web
+  npm run build
   npx pa11y "file://$(pwd)/../internal/httpserver/assets/index.html" --reporter json
   ```
 - Result (2025-03-11): `[]` — no violations detected against the default WCAG2AA ruleset.
