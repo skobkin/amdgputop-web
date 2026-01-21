@@ -58,57 +58,59 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
   ];
 
   return (
-    <section class="grid usage-grid">
-      <article
-        class="metric-card metric-card--compact"
-        title="Current GPU load averaged over the sampling interval"
-      >
-        <div class="metric-card__row">
-          <h3>GPU Load</h3>
-          <span class="metric-inline-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
-        </div>
-        <div
-          class="progress progress--thin"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round((loadRatio ?? 0) * 100)}
+    <section class="usage-section">
+      <div class="grid usage-grid">
+        <article
+          class="metric-card metric-card--compact"
+          title="Current GPU load averaged over the sampling interval"
         >
-          <span style={`width: ${(loadRatio ?? 0) * 100}%`}></span>
-        </div>
-      </article>
-      {memoryRows.map((row) => {
-        const usedText =
-          row.used != null && row.total != null
-            ? `${formatBytes(row.used)} / ${formatBytes(row.total)}`
-            : formatBytes(row.used);
-
-        return (
-          <article
-            key={row.key}
-            class="metric-card metric-card--compact"
-            title={
-              row.key === 'vram'
-                ? 'Video memory usage (bytes used out of total)'
-                : 'Graphics translation table usage (bytes used out of total)'
-            }
+          <div class="metric-card__row">
+            <h3>GPU Load</h3>
+            <span class="metric-inline-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
+          </div>
+          <div
+            class="progress progress--thin"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round((loadRatio ?? 0) * 100)}
           >
-            <div class="metric-card__row">
-              <h3>{row.label}</h3>
-              <span class="metric-inline-value">{usedText}</span>
-            </div>
-            <div
-              class="progress progress--thin"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round((row.ratio ?? 0) * 100)}
+            <span style={`width: ${(loadRatio ?? 0) * 100}%`}></span>
+          </div>
+        </article>
+        {memoryRows.map((row) => {
+          const usedText =
+            row.used != null && row.total != null
+              ? `${formatBytes(row.used)} / ${formatBytes(row.total)}`
+              : formatBytes(row.used);
+
+          return (
+            <article
+              key={row.key}
+              class="metric-card metric-card--compact"
+              title={
+                row.key === 'vram'
+                  ? 'Video memory usage (bytes used out of total)'
+                  : 'Graphics translation table usage (bytes used out of total)'
+              }
             >
-              <span style={`width: ${(row.ratio ?? 0) * 100}%`}></span>
-            </div>
-          </article>
-        );
-      })}
+              <div class="metric-card__row">
+                <h3>{row.label}</h3>
+                <span class="metric-inline-value">{usedText}</span>
+              </div>
+              <div
+                class="progress progress--thin"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round((row.ratio ?? 0) * 100)}
+              >
+                <span style={`width: ${(row.ratio ?? 0) * 100}%`}></span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
       {chartsEnabled && chartHistory && sampleIntervalMs ? (
         <div class="chart-section">
           <button
