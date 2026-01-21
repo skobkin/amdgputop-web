@@ -12,7 +12,7 @@
     "@picocss/pico": "^2.0.6",
     "preact": "^10.28.2",
     "uplot": "^1.6.31",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.2",
