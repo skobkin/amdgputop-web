@@ -66,17 +66,32 @@ export function appendChartSample(
 export function buildChartSeries(
   history: ChartHistory,
   windowPoints: number,
+  intervalMs: number,
   key: ChartMetricKey
 ): { x: number[]; y: Array<number | null> } {
-  const count = Math.min(history.size, windowPoints);
-  if (count <= 0) {
+  if (windowPoints <= 0) {
     return { x: [], y: [] };
   }
-  const x: number[] = new Array(count);
-  const y: Array<number | null> = new Array(count);
+  const count = Math.min(history.size, windowPoints);
+  const x: number[] = new Array(windowPoints);
+  const y: Array<number | null> = new Array(windowPoints);
+  if (count <= 0) {
+    const now = Date.now();
+    for (let i = 0; i < windowPoints; i += 1) {
+      x[i] = now - (windowPoints - 1 - i) * intervalMs;
+      y[i] = null;
+    }
+    return { x, y };
+  }
   const start = (history.cursor - count + history.capacity) % history.capacity;
-  for (let i = 0; i < count; i += 1) {
-    const idx = (start + i) % history.capacity;
+  for (let i = 0; i < windowPoints; i += 1) {
+    if (i < windowPoints - count) {
+      const base = history.timestamps[start] ?? Date.now();
+      x[i] = base - (windowPoints - count - i) * intervalMs;
+      y[i] = null;
+      continue;
+    }
+    const idx = (start + (i - (windowPoints - count))) % history.capacity;
     x[i] = history.timestamps[idx] ?? Date.now();
     y[i] = history[key][idx] ?? null;
   }

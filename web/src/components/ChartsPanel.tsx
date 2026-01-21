@@ -73,15 +73,16 @@ const CHARTS: ChartDefinition[] = [
 interface Props {
   history: ChartHistory;
   windowPoints: number;
+  intervalMs: number;
 }
 
-const ChartsPanel: FunctionalComponent<Props> = ({ history, windowPoints }) => {
+const ChartsPanel: FunctionalComponent<Props> = ({ history, windowPoints, intervalMs }) => {
   const chartData = useMemo(() => {
     return CHARTS.map((chart) => ({
       chart,
-      series: buildChartSeries(history, windowPoints, chart.key)
+      series: buildChartSeries(history, windowPoints, intervalMs, chart.key)
     }));
-  }, [history, windowPoints]);
+  }, [history, intervalMs, windowPoints]);
 
   return (
     <div class="charts-grid">
