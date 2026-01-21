@@ -22,6 +22,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
   const chartsCollapsed = useAppStore((state) => state.chartsCollapsed);
   const setChartsCollapsed = useAppStore((state) => state.setChartsCollapsed);
   const chartHistoryByGpu = useAppStore((state) => state.chartHistoryByGpu);
+  const sampleIntervalMs = useAppStore((state) => state.sampleIntervalMs);
 
   if (!sample) {
     return null;
@@ -108,7 +109,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
           </article>
         );
       })}
-      {chartsEnabled && chartHistory ? (
+      {chartsEnabled && chartHistory && sampleIntervalMs ? (
         <div class="chart-section">
           <button
             type="button"
@@ -120,7 +121,11 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
             <span class="chart-toggle__icon">{chartsCollapsed ? '▸' : '▾'}</span>
           </button>
           {!chartsCollapsed ? (
-            <ChartsPanel history={chartHistory} windowPoints={chartWindowPoints} />
+            <ChartsPanel
+              history={chartHistory}
+              windowPoints={chartWindowPoints}
+              intervalMs={sampleIntervalMs}
+            />
           ) : null}
         </div>
       ) : null}

@@ -96,6 +96,10 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
           width: 1.6
         }
       ],
+      sync: {
+        key: 'gpu-charts',
+        setSeries: true
+      },
       cursor: {
         drag: {
           x: false,
