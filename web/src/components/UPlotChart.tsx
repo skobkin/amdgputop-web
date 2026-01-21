@@ -78,6 +78,9 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
           }
         }
       ],
+      legend: {
+        show: false
+      },
       series: [
         {},
         {
@@ -93,7 +96,6 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
           y: false
         },
         points: {
-          show: true,
           size: 5
         },
         sync: {

@@ -28,9 +28,7 @@ RUN go mod download
 COPY . .
 COPY --from=frontend /app/internal/httpserver/assets /tmp/web-assets
 
-RUN cp internal/httpserver/assets/api.html /tmp/api.html && \
-    rm -rf internal/httpserver/assets/* && \
-    mv /tmp/api.html internal/httpserver/assets/api.html && \
+RUN rm -rf internal/httpserver/assets/* && \
     cp -r /tmp/web-assets/. internal/httpserver/assets/
 
 ARG VERSION=dev
