@@ -29,6 +29,21 @@ jobs:
           check-latest: true
           cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Build frontend bundle
+        run: npm run build
+        working-directory: web
+
       - name: Check formatting
         run: |
           fmt_out=$(gofmt -l ./cmd ./internal 2>/dev/null)
@@ -49,21 +64,6 @@ jobs:
 
       - name: Build backend binary
         run: go build ./cmd/amdgputop-web
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: web
-
-      - name: Build frontend bundle
-        run: npm run build
-        working-directory: web
 
   release:
     needs: build
