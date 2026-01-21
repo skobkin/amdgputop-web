@@ -8,19 +8,21 @@ import (
 
 // HelloMessage is the initial payload sent on WebSocket connection.
 type HelloMessage struct {
-	Type       string          `json:"type"`
-	IntervalMS int             `json:"interval_ms"`
-	GPUs       []gpu.Info      `json:"gpus"`
-	Features   map[string]bool `json:"features"`
+	Type            string          `json:"type"`
+	IntervalMS      int             `json:"interval_ms"`
+	GPUs            []gpu.Info      `json:"gpus"`
+	Features        map[string]bool `json:"features"`
+	ChartsMaxPoints int             `json:"charts_max_points,omitempty"`
 }
 
 // NewHelloMessage constructs a hello payload.
-func NewHelloMessage(intervalMS int, gpus []gpu.Info, features map[string]bool) HelloMessage {
+func NewHelloMessage(intervalMS int, gpus []gpu.Info, features map[string]bool, chartsMaxPoints int) HelloMessage {
 	return HelloMessage{
-		Type:       "hello",
-		IntervalMS: intervalMS,
-		GPUs:       gpus,
-		Features:   features,
+		Type:            "hello",
+		IntervalMS:      intervalMS,
+		GPUs:            gpus,
+		Features:        features,
+		ChartsMaxPoints: chartsMaxPoints,
 	}
 }
 

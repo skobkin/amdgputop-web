@@ -57,6 +57,7 @@ export interface HelloMessage {
   interval_ms: number;
   gpus: GPUInfo[];
   features: Record<string, boolean>;
+  charts_max_points?: number;
 }
 
 export interface ErrorMessage {

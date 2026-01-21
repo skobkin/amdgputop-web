@@ -1,4 +1,7 @@
 import type { FunctionalComponent } from 'preact';
+import { useMemo } from 'preact/hooks';
+import { useAppStore } from '@/store';
+import ChartsPanel from '@/components/ChartsPanel';
 import type { StatsSample } from '@/types';
 import { formatBytes, formatPercent } from '@/lib/format';
 
@@ -14,9 +17,19 @@ function ratio(used: number | null, total: number | null): number | null {
 }
 
 const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
+  const chartsEnabled = useAppStore((state) => state.features.charts);
+  const chartWindowPoints = useAppStore((state) => state.chartWindowPoints);
+  const chartsCollapsed = useAppStore((state) => state.chartsCollapsed);
+  const setChartsCollapsed = useAppStore((state) => state.setChartsCollapsed);
+  const chartHistoryByGpu = useAppStore((state) => state.chartHistoryByGpu);
+
   if (!sample) {
     return null;
   }
+
+  const chartHistory = useMemo(() => {
+    return chartHistoryByGpu[sample.gpu_id];
+  }, [chartHistoryByGpu, sample.gpu_id]);
 
   const { metrics } = sample;
   const loadRatio =
@@ -95,6 +108,22 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
           </article>
         );
       })}
+      {chartsEnabled && chartHistory ? (
+        <div class="chart-section">
+          <button
+            type="button"
+            class="chart-toggle"
+            onClick={() => setChartsCollapsed(!chartsCollapsed)}
+            aria-expanded={!chartsCollapsed}
+          >
+            <span>Charts</span>
+            <span class="chart-toggle__icon">{chartsCollapsed ? '▸' : '▾'}</span>
+          </button>
+          {!chartsCollapsed ? (
+            <ChartsPanel history={chartHistory} windowPoints={chartWindowPoints} />
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 };

@@ -26,6 +26,8 @@ const App = () => {
   const connection = useAppStore((state) => state.connection);
   const features = useAppStore((state) => state.features);
   const sampleIntervalMs = useAppStore((state) => state.sampleIntervalMs);
+  const chartsMaxPoints = useAppStore((state) => state.chartsMaxPoints);
+  const chartWindowPoints = useAppStore((state) => state.chartWindowPoints);
   const lastUpdatedTs = useAppStore((state) => state.lastUpdatedTs);
   const version = useAppStore((state) => state.version);
   const error = useAppStore((state) => state.error);
@@ -34,6 +36,8 @@ const App = () => {
   const setConnection = useAppStore((state) => state.setConnection);
   const setFeatures = useAppStore((state) => state.setFeatures);
   const setSampleInterval = useAppStore((state) => state.setSampleInterval);
+  const setChartsMaxPoints = useAppStore((state) => state.setChartsMaxPoints);
+  const setChartWindowPoints = useAppStore((state) => state.setChartWindowPoints);
   const updateStats = useAppStore((state) => state.updateStats);
   const updateProcs = useAppStore((state) => state.updateProcs);
   const clearGpuData = useAppStore((state) => state.clearGpuData);
@@ -209,6 +213,9 @@ const App = () => {
               case 'hello':
                 setFeatures(message.features ?? {});
                 setSampleInterval(message.interval_ms);
+                if (typeof message.charts_max_points === 'number') {
+                  setChartsMaxPoints(message.charts_max_points);
+                }
                 setGPUs(message.gpus ?? []);
                 break;
               case 'stats':
@@ -335,6 +342,21 @@ const App = () => {
     return procsByGpu[selectedGpuId];
   }, [procsByGpu, selectedGpuId]);
 
+  const chartWindowOptions = useMemo(() => {
+    if (!features.charts || !sampleIntervalMs || chartsMaxPoints <= 0) {
+      return [];
+    }
+    const candidatePoints = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400];
+    const options = candidatePoints.filter((points) => points <= chartsMaxPoints);
+    if (!options.includes(chartsMaxPoints)) {
+      options.push(chartsMaxPoints);
+    }
+    return options.sort((a, b) => a - b).map((points) => ({
+      points,
+      label: formatChartWindowLabel(points, sampleIntervalMs)
+    }));
+  }, [chartsMaxPoints, features.charts, sampleIntervalMs]);
+
   return (
     <main data-scale={uiScale}>
       <header>
@@ -401,6 +423,24 @@ const App = () => {
             ))}
           </select>
         </div>
+        {features.charts && chartWindowOptions.length > 0 ? (
+          <div class="scale-picker">
+            <label for="chart-window">Chart window</label>
+            <select
+              id="chart-window"
+              value={chartWindowPoints}
+              onChange={(event) =>
+                setChartWindowPoints(Number((event.currentTarget as HTMLSelectElement).value))
+              }
+            >
+              {chartWindowOptions.map((option) => (
+                <option key={option.points} value={option.points}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <a href="https://github.com/skobkin/amdgputop-web" target="_blank" rel="noreferrer">
           GitHub →
         </a>
@@ -410,3 +450,17 @@ const App = () => {
 };
 
 export default App;
+
+function formatChartWindowLabel(points: number, intervalMs: number): string {
+  const totalMs = points * intervalMs;
+  const seconds = Math.max(1, Math.round(totalMs / 1000));
+  if (seconds < 60) {
+    return `${seconds}s (${points} pts)`;
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m (${points} pts)`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `${hours}h (${points} pts)`;
+}
