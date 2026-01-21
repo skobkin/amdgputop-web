@@ -206,10 +206,18 @@ header {
 }
 
 .chart-section {
-  padding: calc(0.5rem * var(--spacing-scale));
+  padding: calc(0.45rem * var(--spacing-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.45rem * var(--spacing-scale));
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--pico-border-radius);
+}
+
+.chart-section--collapsed {
+  padding-block: calc(0.2rem * var(--spacing-scale));
+  gap: 0;
 }
 
 .chart-toggle {
@@ -220,11 +228,19 @@ header {
   gap: 0.5rem;
   background: transparent;
   border: none;
+  margin: 0;
   color: rgba(255, 255, 255, 0.8);
   font-size: calc(0.9rem * var(--spacing-scale));
   font-weight: 600;
-  padding: 0.25rem 0;
+  line-height: 1.2;
+  padding: 0.1rem 0;
   cursor: pointer;
+}
+
+.chart-section--collapsed .chart-toggle {
+  line-height: 1;
+  padding-block: 0;
+  min-height: 0;
 }
 
 .chart-toggle__icon {
@@ -233,7 +249,7 @@ header {
 }
 
 .charts-grid {
-  margin-top: 0.6rem;
+  margin-top: 0;
   display: grid;
   gap: calc(0.65rem * var(--spacing-scale));
   grid-template-columns: repeat(4, minmax(220px, 1fr));
