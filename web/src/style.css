@@ -31,7 +31,7 @@ main {
   --proc-cmd-size: 0.8rem;
   --footer-font-size: 0.85rem;
   --table-max-height: 420px;
-  max-width: 1200px;
+  max-width: min(2400px, 100%);
   margin: 0 auto;
   padding: calc(1.25rem * var(--spacing-scale));
 }
