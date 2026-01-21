@@ -1,3 +1,4 @@
+import uPlot from 'uplot';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 interface ChartTooltip {
@@ -23,26 +24,15 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
   const containerRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const [uPlotModule, setUPlotModule] = useState<any>(null);
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void import('uplot').then((mod) => {
-      if (!active) {
-        return;
-      }
-      setUPlotModule(mod.default ?? mod);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const options = useMemo(() => {
     const plugin = {
       hooks: {
         setCursor: (u: any) => {
+          if (!u.cursor) {
+            return;
+          }
           const idx = u.cursor.idx;
           if (idx == null || idx < 0) {
             setTooltip(null);
@@ -76,15 +66,15 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       },
       axes: [
         {
-          stroke: 'rgba(255, 255, 255, 0.5)',
+          stroke: 'rgba(241, 245, 249, 0.85)',
           grid: {
-            stroke: 'rgba(255, 255, 255, 0.06)'
+            stroke: 'rgba(255, 255, 255, 0.12)'
           }
         },
         {
-          stroke: 'rgba(255, 255, 255, 0.55)',
+          stroke: 'rgba(241, 245, 249, 0.85)',
           grid: {
-            stroke: 'rgba(255, 255, 255, 0.06)'
+            stroke: 'rgba(255, 255, 255, 0.12)'
           }
         }
       ],
@@ -93,14 +83,11 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
         {
           label: title,
           stroke,
-          width: 1.6
+          width: 2
         }
       ],
-      sync: {
-        key: 'gpu-charts',
-        setSeries: true
-      },
       cursor: {
+        show: true,
         drag: {
           x: false,
           y: false
@@ -108,6 +95,9 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
         points: {
           show: true,
           size: 5
+        },
+        sync: {
+          key: 'gpu-charts'
         }
       },
       plugins: [plugin]
@@ -115,13 +105,13 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
   }, [height, stroke, title, valueFormatter]);
 
   useEffect(() => {
-    if (!uPlotModule || !containerRef.current) {
+    if (!containerRef.current) {
       return;
     }
 
     const container = containerRef.current;
     const width = Math.max(1, container.clientWidth);
-    const uPlotCtor = uPlotModule;
+    const uPlotCtor = uPlot;
 
     if (!plotRef.current) {
       plotRef.current = new uPlotCtor({ ...options, width }, data, container);
@@ -142,7 +132,7 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
     };
-  }, [data, height, options, uPlotModule]);
+  }, [data, height, options]);
 
   useEffect(() => {
     return () => {

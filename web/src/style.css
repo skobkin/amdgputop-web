@@ -199,8 +199,13 @@ header {
   color: rgba(255, 255, 255, 0.85);
 }
 
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.75rem * var(--spacing-scale));
+}
+
 .chart-section {
-  grid-column: 1 / -1;
   padding: calc(0.5rem * var(--spacing-scale));
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -266,10 +271,28 @@ header {
 
 .chart-canvas .uplot {
   font-family: inherit;
+  width: 100%;
 }
 
 .chart-canvas .uplot canvas {
   background: transparent;
+}
+
+.chart-canvas .uplot .u-axis text {
+  fill: rgba(241, 245, 249, 0.85);
+}
+
+.chart-canvas .uplot .u-axis .u-label {
+  fill: rgba(241, 245, 249, 0.7);
+}
+
+.chart-canvas .uplot .u-legend {
+  color: rgba(241, 245, 249, 0.8);
+}
+
+.chart-canvas .uplot .u-cursor-x,
+.chart-canvas .uplot .u-cursor-y {
+  border-color: rgba(241, 245, 249, 0.35);
 }
 
 .stats-updated {
