@@ -182,7 +182,6 @@ dist
 
 # vuepress v2.x temp and cache directory
 .temp
-.cache
 
 # Docusaurus cache and generated files
 .docusaurus
@@ -233,9 +232,6 @@ dist
 go.work
 go.work.sum
 
-# env file
-.env
-
 ### Project-specific additions
 .DS_Store
 .vscode/
@@ -247,4 +243,5 @@ go.work.sum
 coverage.out
 .lighthouseci/
 # npm build (Vite) assets
-/internal/httpserver/assets/
+/internal/httpserver/assets/*
+!/internal/httpserver/assets/.gitkeep
