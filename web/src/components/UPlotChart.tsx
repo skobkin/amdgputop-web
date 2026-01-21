@@ -52,6 +52,11 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       }
     };
 
+    const formatAxisValue = (value: number) => {
+      const formatted = valueFormatter(value);
+      return formatted.replace(/\.0(?=[^\d]|$)/, '');
+    };
+
     return {
       title: null,
       width: 0,
@@ -73,6 +78,8 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
         },
         {
           stroke: 'rgba(241, 245, 249, 0.85)',
+          size: 64,
+          values: (_u: any, ticks: number[]) => ticks.map((tick) => formatAxisValue(tick)),
           grid: {
             stroke: 'rgba(255, 255, 255, 0.12)'
           }
