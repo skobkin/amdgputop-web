@@ -246,3 +246,5 @@ go.work.sum
 *.swo
 coverage.out
 .lighthouseci/
+# npm build (Vite) assets
+/internal/httpserver/assets/
