@@ -112,7 +112,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
         })}
       </div>
       {chartsEnabled && chartHistory && sampleIntervalMs ? (
-        <div class="chart-section">
+        <div class={`chart-section${chartsCollapsed ? ' chart-section--collapsed' : ''}`}>
           <button
             type="button"
             class="chart-toggle"
