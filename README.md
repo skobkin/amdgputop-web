@@ -10,13 +10,14 @@ Preact single-page app.
 
 ## Features
 
-- Enumerates DRM GPUs and streams utilization, clocks, temps, VRAM/GTT usage.
-- Optional “process top” view sourced from `/proc/*/fdinfo` with engine-time
+- 🖥️ Enumerates DRM GPUs and streams utilization, clocks, temps, VRAM/GTT usage.
+- 🧾 Optional “process top” view sourced from `/proc/*/fdinfo` with engine-time
   deltas when exposed by the kernel.
-- REST endpoints for `/api/gpus`, `/api/gpus/<id>/metrics`, and `/api/gpus/<id>/procs`
+- 📈 Historical charts (uPlot) for the selected GPU with hover tooltips.
+- 🌐 REST endpoints for `/api/gpus`, `/api/gpus/<id>/metrics`, and `/api/gpus/<id>/procs`
   alongside a WebSocket feed (`/ws`).
-- Optional Prometheus `/metrics` export with per-GPU telemetry (no per-process data).
-- Configuration via environment variables (`APP_*`), including sampler cadence,
+- 📊 Optional Prometheus `/metrics` export with per-GPU telemetry (no per-process data).
+- ⚙️ Configuration via environment variables (`APP_*`), including sampler cadence,
   process scanner limits, and allowed origins.
 
 ## Quick Start (host build)
