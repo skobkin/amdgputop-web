@@ -411,8 +411,8 @@ func extractFirstFloat(line string) (float64, bool) {
 	return value, true
 }
 
-func clamp(value, min, max float64) float64 {
-	return math.Max(min, math.Min(max, value))
+func clamp(value, minValue, maxValue float64) float64 {
+	return math.Max(minValue, math.Min(maxValue, value))
 }
 
 func float64Ptr(value float64) *float64 {

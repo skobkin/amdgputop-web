@@ -1,3 +1,4 @@
+// Package gpu discovers AMD GPUs and resolves their metadata.
 package gpu
 
 import (
@@ -91,7 +92,7 @@ func loadCardInfo(sysRoot *os.Root, absRoot, cardID, cardRelPath string) (Info, 
 
 	deviceRoot, err := cardRoot.OpenRoot("device")
 	if err != nil {
-		deviceRoot, err = openResolvedRoot(sysRoot, absRoot, cardRoot, cardRelPath, "device", err)
+		deviceRoot, err = openResolvedRoot(sysRoot, absRoot, cardRelPath, "device")
 		if err != nil {
 			return Info{}, err
 		}
@@ -200,7 +201,7 @@ func readTrim(root *os.Root, name string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func openResolvedRoot(sysRoot *os.Root, absRoot string, base *os.Root, baseRelPath, name string, originalErr error) (*os.Root, error) {
+func openResolvedRoot(sysRoot *os.Root, absRoot, baseRelPath, name string) (*os.Root, error) {
 	linkAbs := filepath.Join(absRoot, baseRelPath, name)
 	resolved, err := filepath.EvalSymlinks(linkAbs)
 	if err != nil {

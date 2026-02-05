@@ -1,3 +1,4 @@
+// Package app wires up and runs the application services.
 package app
 
 import (

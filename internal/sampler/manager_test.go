@@ -49,11 +49,11 @@ func TestManagerSubscribeAndReady(t *testing.T) {
 	}
 	defer unsubscribe()
 
-	first := awaitSample(t, ch, 500*time.Millisecond)
+	first := awaitSample(t, ch)
 	assertFloatEqual(t, first.Metrics.GPUBusyPct, 10)
 
 	writeFile(t, gpuBusyPath, "25\n")
-	next := awaitSample(t, ch, 500*time.Millisecond)
+	next := awaitSample(t, ch)
 	assertFloatEqual(t, next.Metrics.GPUBusyPct, 25)
 
 	if latest, ok := manager.Latest(cardID); !ok || latest.Metrics.GPUBusyPct == nil || *latest.Metrics.GPUBusyPct != 25 {
@@ -74,7 +74,7 @@ func TestManagerSubscribeAndReady(t *testing.T) {
 	time.Sleep(40 * time.Millisecond)
 	writeFile(t, gpuBusyPath, "75\n")
 	time.Sleep(40 * time.Millisecond)
-	final := awaitSample(t, ch, 500*time.Millisecond)
+	final := awaitSample(t, ch)
 	assertFloatEqual(t, final.Metrics.GPUBusyPct, 75)
 }
 
@@ -116,21 +116,21 @@ func TestManagerDropsOldestOnBackpressure(t *testing.T) {
 	defer unsubscribe()
 
 	// Consume initial sample.
-	_ = awaitSample(t, ch, 500*time.Millisecond)
+	_ = awaitSample(t, ch)
 
 	writeFile(t, gpuBusyPath, "15\n")
 	time.Sleep(25 * time.Millisecond)
 	writeFile(t, gpuBusyPath, "35\n")
 	time.Sleep(25 * time.Millisecond)
 
-	latest := awaitSample(t, ch, 500*time.Millisecond)
+	latest := awaitSample(t, ch)
 	assertFloatEqual(t, latest.Metrics.GPUBusyPct, 35)
 }
 
 func createMinimalDevice(t *testing.T, root, cardID string) string {
 	t.Helper()
 	devicePath := filepath.Join(root, "class", "drm", cardID, "device")
-	if err := os.MkdirAll(devicePath, 0o755); err != nil {
+	if err := os.MkdirAll(devicePath, 0o750); err != nil {
 		t.Fatalf("failed to create device directory: %v", err)
 	}
 	return devicePath
@@ -138,15 +138,15 @@ func createMinimalDevice(t *testing.T, root, cardID string) string {
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("failed to create directories for %s: %v", path, err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write %s: %v", path, err)
 	}
 }
 
-func awaitSample(t *testing.T, ch <-chan Sample, timeout time.Duration) Sample {
+func awaitSample(t *testing.T, ch <-chan Sample) Sample {
 	t.Helper()
 	select {
 	case sample, ok := <-ch:
@@ -154,7 +154,7 @@ func awaitSample(t *testing.T, ch <-chan Sample, timeout time.Duration) Sample {
 			t.Fatal("subscription channel closed unexpectedly")
 		}
 		return sample
-	case <-time.After(timeout):
+	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timed out waiting for sample")
 		return Sample{}
 	}

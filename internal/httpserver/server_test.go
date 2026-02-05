@@ -31,7 +31,7 @@ import (
 func TestHealthzOK(t *testing.T) {
 	t.Parallel()
 
-	_, ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
+	ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/healthz")
@@ -58,7 +58,7 @@ func TestHealthzOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /api/healthz failed: %v", err)
 	}
-	respAPI.Body.Close()
+	_ = respAPI.Body.Close()
 	if respAPI.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 for /api/healthz, got %d", respAPI.StatusCode)
 	}
@@ -68,7 +68,7 @@ func TestHealthzOK(t *testing.T) {
 func TestStaticIndexOnlyServedAtRoot(t *testing.T) {
 	t.Parallel()
 
-	_, ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
+	ts := newTestHTTPServer(t, config.Config{}, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/")
@@ -91,7 +91,7 @@ func TestStaticIndexOnlyServedAtRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /not-a-route failed: %v", err)
 	}
-	resp404.Body.Close()
+	_ = resp404.Body.Close()
 	if resp404.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown route, got %d", resp404.StatusCode)
 	}
@@ -106,7 +106,7 @@ func TestReadyzStates(t *testing.T) {
 	gpus := []gpu.Info{{ID: "card0"}}
 
 	// Sampler not configured -> degraded.
-	_, ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
+	ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
 	defer ts.Close()
 
 	assertReadyz(t, ts.URL+"/readyz", http.StatusServiceUnavailable, "degraded", "sampler_not_configured")
@@ -115,7 +115,7 @@ func TestReadyzStates(t *testing.T) {
 	// Sampler configured but not ready -> initializing.
 	sysfsRoot := t.TempDir()
 	debugRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "12\n")
 
 	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
@@ -129,7 +129,7 @@ func TestReadyzStates(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = manager.Close() })
 
-	_, tsInit := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	tsInit := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer tsInit.Close()
 
 	assertReadyz(t, tsInit.URL+"/readyz", http.StatusServiceUnavailable, "initializing", "waiting_for_samples")
@@ -152,7 +152,7 @@ func TestVersionEndpoint(t *testing.T) {
 	version.Set(version.Info{Version: "v0.0.1", Commit: "abc123", BuildTime: "now"})
 
 	cfg := defaultTestConfig()
-	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	ts := newTestHTTPServer(t, cfg, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/version")
@@ -180,7 +180,7 @@ func TestStaticIndexServed(t *testing.T) {
 	t.Parallel()
 
 	cfg := defaultTestConfig()
-	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	ts := newTestHTTPServer(t, cfg, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/")
@@ -211,7 +211,7 @@ func TestAPIDocsServed(t *testing.T) {
 	t.Parallel()
 
 	cfg := defaultTestConfig()
-	_, ts := newTestHTTPServer(t, cfg, nil, nil, nil)
+	ts := newTestHTTPServer(t, cfg, nil, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api")
@@ -243,7 +243,7 @@ func TestPrometheusMetrics(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	sysfsRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "12\n")
 	writeFile(t, filepath.Join(devicePath, "mem_busy_percent"), "24\n")
 	writeFile(t, filepath.Join(devicePath, "pp_dpm_sclk"), "0: 1200Mhz *\n")
@@ -254,7 +254,7 @@ func TestPrometheusMetrics(t *testing.T) {
 	writeFile(t, filepath.Join(devicePath, "mem_info_gtt_total"), "8388608\n")
 
 	hwmonRoot := filepath.Join(devicePath, "hwmon", "hwmon0")
-	if err := os.MkdirAll(hwmonRoot, 0o755); err != nil {
+	if err := os.MkdirAll(hwmonRoot, 0o750); err != nil {
 		t.Fatalf("mkdir hwmon: %v", err)
 	}
 	writeFile(t, filepath.Join(hwmonRoot, "temp1_input"), "43000\n")
@@ -282,7 +282,7 @@ func TestPrometheusMetrics(t *testing.T) {
 	cfg.EnablePrometheus = true
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/metrics")
@@ -311,45 +311,43 @@ func TestPrometheusMetrics(t *testing.T) {
 		t.Fatalf("parse metrics: %v", err)
 	}
 
-	const gpuID = "card0"
-
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_busy_percent", gpuID); got != 12 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_busy_percent"); got != 12 {
 		t.Fatalf("unexpected busy percent: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_mem_busy_percent", gpuID); got != 24 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_mem_busy_percent"); got != 24 {
 		t.Fatalf("unexpected mem busy percent: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_sclk_mhz", gpuID); got != 1200 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_sclk_mhz"); got != 1200 {
 		t.Fatalf("unexpected sclk: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_mclk_mhz", gpuID); got != 800 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_mclk_mhz"); got != 800 {
 		t.Fatalf("unexpected mclk: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_temperature_celsius", gpuID); got != 43 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_temperature_celsius"); got != 43 {
 		t.Fatalf("unexpected temperature: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_fan_rpm", gpuID); got != 1500 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_fan_rpm"); got != 1500 {
 		t.Fatalf("unexpected fan rpm: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_power_watts", gpuID); got != 25 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_power_watts"); got != 25 {
 		t.Fatalf("unexpected power: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_used_bytes", gpuID); got != 1048576 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_used_bytes"); got != 1048576 {
 		t.Fatalf("unexpected vram used: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_total_bytes", gpuID); got != 4194304 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_vram_total_bytes"); got != 4194304 {
 		t.Fatalf("unexpected vram total: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_used_bytes", gpuID); got != 524288 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_used_bytes"); got != 524288 {
 		t.Fatalf("unexpected gtt used: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_total_bytes", gpuID); got != 8388608 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_gtt_total_bytes"); got != 8388608 {
 		t.Fatalf("unexpected gtt total: %v", got)
 	}
-	if got := metricGaugeValue(t, families, "amdgputop_gpu_sample_timestamp_seconds", gpuID); got == 0 {
+	if got := metricGaugeValue(t, families, "amdgputop_gpu_sample_timestamp_seconds"); got == 0 {
 		t.Fatalf("expected sample timestamp, got 0")
 	}
-	if age := metricGaugeValue(t, families, "amdgputop_gpu_sample_age_seconds", gpuID); age > 5 {
+	if age := metricGaugeValue(t, families, "amdgputop_gpu_sample_age_seconds"); age > 5 {
 		t.Fatalf("unexpected sample age: %v", age)
 	}
 }
@@ -362,7 +360,7 @@ func TestAPIGPUs(t *testing.T) {
 		{ID: "card0", PCI: "0000:01:00.0", PCIID: "1002:73df", RenderNode: "/dev/dri/renderD128"},
 	}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
+	ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/gpus")
@@ -405,7 +403,9 @@ func TestServerGracefulShutdown(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close dialed conn: %v", err)
+		}
 		return true
 	})
 
@@ -413,11 +413,14 @@ func TestServerGracefulShutdown(t *testing.T) {
 	cctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	conn, resp, err := websocket.Dial(cctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer closeWebsocket(nil, conn)
 
 	if _, err := expectHelloMessage(cctx, conn); err != nil {
 		t.Fatalf("expect hello: %v", err)
@@ -457,7 +460,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 	cfg := defaultTestConfig()
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, tsNoSampler := newTestHTTPServer(t, cfg, gpus, nil, nil)
+	tsNoSampler := newTestHTTPServer(t, cfg, gpus, nil, nil)
 	defer tsNoSampler.Close()
 
 	resp, err := http.Get(tsNoSampler.URL + "/api/gpus/card0/metrics")
@@ -465,7 +468,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 		t.Fatalf("GET metrics without sampler failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when sampler missing, got %d", resp.StatusCode)
 	}
@@ -480,7 +483,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = manager.Close() })
 
-	_, tsNoSample := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	tsNoSample := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer tsNoSample.Close()
 
 	resp2, err := http.Get(tsNoSample.URL + "/api/gpus/card0/metrics")
@@ -488,7 +491,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 		t.Fatalf("GET metrics without sample failed: %v", err)
 	}
 	body2, _ := io.ReadAll(resp2.Body)
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	if resp2.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when no sample available, got %d", resp2.StatusCode)
 	}
@@ -510,24 +513,27 @@ func TestWebSocketSubscribeUnknownGPU(t *testing.T) {
 	cfg := defaultTestConfig()
 	cfg.DefaultGPU = "auto"
 
-	_, ts := newTestHTTPServer(t, cfg, nil, manager, nil)
+	ts := newTestHTTPServer(t, cfg, nil, manager, nil)
 	defer ts.Close()
 
 	wsURL := toWebsocketURL(ts.URL + "/ws")
 	cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	conn, resp, err := websocket.Dial(cctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer closeWebsocket(nil, conn)
 
 	if _, err := expectHelloMessage(cctx, conn); err != nil {
 		t.Fatalf("expect hello: %v", err)
 	}
 
-	expectErrorMessage(t, cctx, conn, "no GPUs detected")
+	expectErrorMessage(cctx, t, conn, "no GPUs detected")
 
 	subscribeMsg := map[string]string{
 		"type":   "subscribe",
@@ -545,7 +551,7 @@ func TestWebSocketSubscribeUnknownGPU(t *testing.T) {
 	}
 	writeCancel()
 
-	expectErrorMessage(t, cctx, conn, "unknown gpu")
+	expectErrorMessage(cctx, t, conn, "unknown gpu")
 }
 
 func TestAPIGPUMetrics(t *testing.T) {
@@ -555,7 +561,7 @@ func TestAPIGPUMetrics(t *testing.T) {
 
 	sysfsRoot := t.TempDir()
 	debugRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "9\n")
 
 	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
@@ -578,7 +584,7 @@ func TestAPIGPUMetrics(t *testing.T) {
 	cfg := defaultTestConfig()
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/gpus/card0/metrics")
@@ -607,7 +613,7 @@ func TestAPIGPUMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET unknown metrics failed: %v", err)
 	}
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	if resp2.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown gpu, got %d", resp2.StatusCode)
 	}
@@ -620,7 +626,7 @@ func TestAPIGPUProcs(t *testing.T) {
 
 	sysfsRoot := t.TempDir()
 	debugRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	writeFile(t, filepath.Join(devicePath, "gpu_busy_percent"), "9\n")
 
 	reader, err := sampler.NewReader("card0", sysfsRoot, debugRoot, logger)
@@ -642,10 +648,10 @@ func TestAPIGPUProcs(t *testing.T) {
 
 	procRoot := t.TempDir()
 	pidDir := filepath.Join(procRoot, "3100")
-	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o750); err != nil {
 		t.Fatalf("mkdir fdinfo: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o750); err != nil {
 		t.Fatalf("mkdir fd: %v", err)
 	}
 	writeFile(t, filepath.Join(pidDir, "comm"), "proc\n")
@@ -685,7 +691,7 @@ func TestAPIGPUProcs(t *testing.T) {
 	cfg.Proc = procCfg
 	cfg.ProcRoot = procRoot
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
+	ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/gpus/card0/procs")
@@ -714,14 +720,14 @@ func TestAPIGPUProcs(t *testing.T) {
 	}
 
 	// Requesting procs when manager is nil should yield 503.
-	_, tsNoProc := newTestHTTPServer(t, cfg, gpus, samplerManager, nil)
+	tsNoProc := newTestHTTPServer(t, cfg, gpus, samplerManager, nil)
 	defer tsNoProc.Close()
 
 	resp2, err := http.Get(tsNoProc.URL + "/api/gpus/card0/procs")
 	if err != nil {
 		t.Fatalf("GET procs without manager failed: %v", err)
 	}
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	if resp2.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when proc manager unavailable, got %d", resp2.StatusCode)
 	}
@@ -734,7 +740,7 @@ func TestWebSocketHelloAndStats(t *testing.T) {
 
 	sysfsRoot := t.TempDir()
 	debugRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	busyPath := filepath.Join(devicePath, "gpu_busy_percent")
 	writeFile(t, busyPath, "5\n")
 
@@ -758,18 +764,21 @@ func TestWebSocketHelloAndStats(t *testing.T) {
 	cfg.SampleInterval = 5 * time.Millisecond
 	gpus := []gpu.Info{{ID: "card0"}}
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	ts := newTestHTTPServer(t, cfg, gpus, manager, nil)
 	defer ts.Close()
 
 	wsURL := toWebsocketURL(ts.URL + "/ws")
 	cctx, ccancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer ccancel()
 
-	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	conn, resp, err := websocket.Dial(cctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer closeWebsocket(nil, conn)
 
 	helloType, helloData, err := conn.Read(cctx)
 	if err != nil {
@@ -820,7 +829,7 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 
 	sysfsRoot := t.TempDir()
 	debugRoot := t.TempDir()
-	devicePath := createDeviceTree(t, sysfsRoot, "card0")
+	devicePath := createDeviceTree(t, sysfsRoot)
 	busyPath := filepath.Join(devicePath, "gpu_busy_percent")
 	writeFile(t, busyPath, "7\n")
 
@@ -842,10 +851,10 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 
 	procRoot := t.TempDir()
 	pidDir := filepath.Join(procRoot, "2200")
-	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(pidDir, "fdinfo"), 0o750); err != nil {
 		t.Fatalf("mkdir proc fdinfo: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(pidDir, "fd"), 0o750); err != nil {
 		t.Fatalf("mkdir proc fd: %v", err)
 	}
 	writeFile(t, filepath.Join(pidDir, "comm"), "proc\n")
@@ -885,18 +894,21 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 	cfg.Proc = procCfg
 	cfg.ProcRoot = procRoot
 
-	_, ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
+	ts := newTestHTTPServer(t, cfg, gpus, samplerManager, procManager)
 	defer ts.Close()
 
 	wsURL := toWebsocketURL(ts.URL + "/ws")
 	cctx, ccancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer ccancel()
 
-	conn, _, err := websocket.Dial(cctx, wsURL, nil)
+	conn, resp, err := websocket.Dial(cctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer closeWebsocket(nil, conn)
 
 	helloMsg, err := expectHelloMessage(cctx, conn)
 	if err != nil {
@@ -984,7 +996,7 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 	}
 }
 
-func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, samplerManager *sampler.Manager, procManager *procscan.Manager) (*Server, *httptest.Server) {
+func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, samplerManager *sampler.Manager, procManager *procscan.Manager) *httptest.Server {
 	t.Helper()
 
 	if cfg.ListenAddr == "" {
@@ -995,7 +1007,7 @@ func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, sampler
 	srv := New(cfg, logger, gpus, samplerManager, procManager)
 	ts := httptest.NewServer(srv.httpServer.Handler)
 	t.Cleanup(ts.Close)
-	return srv, ts
+	return ts
 }
 
 func freeLoopbackAddress(t *testing.T) string {
@@ -1014,6 +1026,7 @@ func freeLoopbackAddress(t *testing.T) string {
 func assertReadyz(t *testing.T, url string, expectedStatus int, expected string, reason string) {
 	t.Helper()
 
+	// #nosec G107 -- test helper requests local server URLs.
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s failed: %v", url, err)
@@ -1041,9 +1054,9 @@ func assertReadyz(t *testing.T, url string, expectedStatus int, expected string,
 	}
 }
 
-func createDeviceTree(t *testing.T, root, cardID string) string {
+func createDeviceTree(t *testing.T, root string) string {
 	t.Helper()
-	devicePath := filepath.Join(root, "class", "drm", cardID, "device")
+	devicePath := filepath.Join(root, "class", "drm", "card0", "device")
 	if err := mkdirAll(devicePath); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -1051,15 +1064,15 @@ func createDeviceTree(t *testing.T, root, cardID string) string {
 }
 
 func mkdirAll(path string) error {
-	return os.MkdirAll(path, 0o755)
+	return os.MkdirAll(path, 0o750)
 }
 
 func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
 }
@@ -1082,7 +1095,7 @@ func expectHelloMessage(ctx context.Context, conn *websocket.Conn) (map[string]a
 	return payload, nil
 }
 
-func expectErrorMessage(t *testing.T, baseCtx context.Context, conn *websocket.Conn, wantSubstring string) {
+func expectErrorMessage(baseCtx context.Context, t *testing.T, conn *websocket.Conn, wantSubstring string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(baseCtx, time.Second)
 	defer cancel()
@@ -1147,7 +1160,7 @@ func defaultTestConfig() config.Config {
 	}
 }
 
-func metricGaugeValue(t *testing.T, families map[string]*dto.MetricFamily, name, gpuID string) float64 {
+func metricGaugeValue(t *testing.T, families map[string]*dto.MetricFamily, name string) float64 {
 	t.Helper()
 	family, ok := families[name]
 	if !ok {
@@ -1155,16 +1168,16 @@ func metricGaugeValue(t *testing.T, families map[string]*dto.MetricFamily, name,
 	}
 	for _, metric := range family.Metric {
 		for _, label := range metric.Label {
-			if label.GetName() != "gpu_id" || label.GetValue() != gpuID {
+			if label.GetName() != "gpu_id" || label.GetValue() != "card0" {
 				continue
 			}
 			if metric.Gauge == nil || metric.Gauge.Value == nil {
-				t.Fatalf("metric %s missing gauge value for gpu %s", name, gpuID)
+				t.Fatalf("metric %s missing gauge value for gpu %s", name, "card0")
 			}
 			return metric.Gauge.GetValue()
 		}
 	}
-	t.Fatalf("metric %s missing gpu_id=%s", name, gpuID)
+	t.Fatalf("metric %s missing gpu_id=%s", name, "card0")
 	return 0
 }
 

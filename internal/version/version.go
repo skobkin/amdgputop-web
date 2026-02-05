@@ -1,3 +1,4 @@
+// Package version tracks build metadata for the application.
 package version
 
 import (

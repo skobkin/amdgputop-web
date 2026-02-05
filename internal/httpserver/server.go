@@ -310,7 +310,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		reqLogger.Warn("websocket accept failed", "err", err)
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer closeWebsocket(s.logger, conn)
 
 	connID := s.wsConnIDs.Add(1)
 	s.wsTotal.Add(1)
