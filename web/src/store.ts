@@ -15,6 +15,7 @@ export type UIScale = 'smallest' | 'small' | 'compact' | 'medium' | 'comfortable
 const UI_SCALE_STORAGE_KEY = 'amdgputop-web:ui-scale';
 const CHART_WINDOW_STORAGE_KEY = 'amdgputop-web:chart-window-points';
 const CHARTS_COLLAPSED_STORAGE_KEY = 'amdgputop-web:charts-collapsed';
+const SELECTED_GPU_STORAGE_KEY = 'amdgputop-web:selected-gpu-id';
 
 const DEFAULT_CHART_WINDOW_POINTS = 300;
 
@@ -77,9 +78,25 @@ function readInitialChartsCollapsed(): boolean {
   return true;
 }
 
+function readInitialSelectedGpuId(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const stored = window.localStorage.getItem(SELECTED_GPU_STORAGE_KEY);
+    if (stored) {
+      return stored;
+    }
+  } catch {
+    // Ignore storage errors and use fallback.
+  }
+  return null;
+}
+
 const initialUiScale = readInitialUiScale();
 const initialChartWindowPoints = readInitialChartWindow();
 const initialChartsCollapsed = readInitialChartsCollapsed();
+const initialSelectedGpuId = readInitialSelectedGpuId();
 
 interface AppState {
   gpus: GPUInfo[];
@@ -115,7 +132,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   gpus: [],
-  selectedGpuId: null,
+  selectedGpuId: initialSelectedGpuId,
   connection: 'idle',
   features: {},
   sampleIntervalMs: null,
@@ -135,9 +152,34 @@ export const useAppStore = create<AppState>((set) => ({
       if (!selected || !gpus.some((gpu) => gpu.id === selected)) {
         selected = gpus.length > 0 ? gpus[0].id : null;
       }
+      if (typeof window !== 'undefined') {
+        try {
+          if (selected) {
+            window.localStorage.setItem(SELECTED_GPU_STORAGE_KEY, selected);
+          } else {
+            window.localStorage.removeItem(SELECTED_GPU_STORAGE_KEY);
+          }
+        } catch {
+          // Ignore storage errors.
+        }
+      }
       return { gpus, selectedGpuId: selected };
     }),
-  setSelectedGpuId: (id) => set({ selectedGpuId: id }),
+  setSelectedGpuId: (id) =>
+    set(() => {
+      if (typeof window !== 'undefined') {
+        try {
+          if (id) {
+            window.localStorage.setItem(SELECTED_GPU_STORAGE_KEY, id);
+          } else {
+            window.localStorage.removeItem(SELECTED_GPU_STORAGE_KEY);
+          }
+        } catch {
+          // Ignore storage errors.
+        }
+      }
+      return { selectedGpuId: id };
+    }),
   setConnection: (status) => set({ connection: status }),
   setFeatures: (features) => set({ features }),
   setSampleInterval: (ms) => set({ sampleIntervalMs: ms }),
