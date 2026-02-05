@@ -53,6 +53,12 @@ jobs:
             exit 1
           fi
 
+      - name: Lint (golangci-lint)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.8.0
+          args: --config .golangci.yml
+
       - name: Static analysis
         run: go vet ./...
 
