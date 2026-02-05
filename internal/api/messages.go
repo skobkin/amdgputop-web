@@ -1,3 +1,6 @@
+// Package api defines API payloads for HTTP and WebSocket responses.
+//
+//revive:disable-next-line:var-naming
 package api
 
 import (

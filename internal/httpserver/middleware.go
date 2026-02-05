@@ -1,3 +1,4 @@
+// Package httpserver exposes HTTP handlers and middleware for the service.
 package httpserver
 
 import (
