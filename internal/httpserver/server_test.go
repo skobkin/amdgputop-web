@@ -417,7 +417,7 @@ func TestServerGracefulShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	if resp != nil {
+	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	defer closeWebsocket(nil, conn)
@@ -524,7 +524,7 @@ func TestWebSocketSubscribeUnknownGPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	if resp != nil {
+	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	defer closeWebsocket(nil, conn)
@@ -775,7 +775,7 @@ func TestWebSocketHelloAndStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	if resp != nil {
+	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	defer closeWebsocket(nil, conn)
@@ -905,7 +905,7 @@ func TestWebSocketStatsAndProcs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}
-	if resp != nil {
+	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	defer closeWebsocket(nil, conn)
