@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@picocss/pico": "^2.0.6",
-    "preact": "^10.28.3",
+    "preact": "^10.28.4",
     "uplot": "^1.6.32",
     "zustand": "^5.0.11"
   },
