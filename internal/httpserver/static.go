@@ -28,7 +28,7 @@ func (s *Server) staticHandler() http.Handler {
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			if _, err := w.Write(data); err != nil {
-				// log write failure if desired
+				s.logger.Warn("failed to write index asset", "err", err)
 			}
 		}
 
@@ -61,6 +61,6 @@ func cloneURL(u *url.URL) *url.URL {
 	if u == nil {
 		return &url.URL{Path: "/"}
 	}
-	copy := *u
-	return &copy
+	clone := *u
+	return &clone
 }

@@ -51,6 +51,7 @@ func TestParseFDInfoMemoryOnly(t *testing.T) {
 func readTestdata(t *testing.T, name string) []byte {
 	t.Helper()
 	path := filepath.Join("testdata", name)
+	// #nosec G304 -- reading controlled testdata fixtures.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", name, err)

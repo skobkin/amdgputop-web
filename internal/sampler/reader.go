@@ -38,6 +38,7 @@ type Reader struct {
 	deviceRoot    *os.Root
 	debugCardRoot *os.Root
 	hwmonRoot     *os.Root
+	mu            sync.RWMutex
 	closeOnce     sync.Once
 	closeErr      error
 }
@@ -88,6 +89,8 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 
 // Sample collects metrics for the GPU. Non-fatal read errors result in nil fields.
 func (r *Reader) Sample() Sample {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	now := time.Now().UTC()
 	metrics := Metrics{}
 
@@ -324,6 +327,8 @@ func detectHwmon(deviceRoot *os.Root) *os.Root {
 // multiple times; subsequent calls return the same error result.
 func (r *Reader) Close() error {
 	r.closeOnce.Do(func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		var errs []error
 		if r.hwmonRoot != nil {
 			if err := r.hwmonRoot.Close(); err != nil {
@@ -406,8 +411,8 @@ func extractFirstFloat(line string) (float64, bool) {
 	return value, true
 }
 
-func clamp(value, min, max float64) float64 {
-	return math.Max(min, math.Min(max, value))
+func clamp(value, minValue, maxValue float64) float64 {
+	return math.Max(minValue, math.Min(maxValue, value))
 }
 
 func float64Ptr(value float64) *float64 {

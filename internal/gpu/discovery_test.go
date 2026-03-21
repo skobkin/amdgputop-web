@@ -86,20 +86,20 @@ func TestDiscoverFollowsSymlinks(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	classPath := filepath.Join(root, "class", "drm")
-	if err := os.MkdirAll(classPath, 0o755); err != nil {
+	if err := os.MkdirAll(classPath, 0o750); err != nil {
 		t.Fatalf("mkdir class: %v", err)
 	}
 
 	target := filepath.Join(root, "devices", "pci0000:00", "0000:00:01.0", "drm", "card0")
 	deviceDir := filepath.Join(target, "device")
-	if err := os.MkdirAll(filepath.Join(deviceDir, "drm"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(deviceDir, "drm"), 0o750); err != nil {
 		t.Fatalf("mkdir device: %v", err)
 	}
 
 	writeFile(t, filepath.Join(deviceDir, "uevent"), "PCI_SLOT_NAME=0000:00:01.0\nPCI_ID=1002:73df\n")
 	writeFile(t, filepath.Join(deviceDir, "vendor"), "0x1002\n")
 	writeFile(t, filepath.Join(deviceDir, "device"), "0x73df\n")
-	if err := os.MkdirAll(filepath.Join(deviceDir, "drm", "renderD128"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(deviceDir, "drm", "renderD128"), 0o750); err != nil {
 		t.Fatalf("mkdir render node: %v", err)
 	}
 
@@ -123,10 +123,10 @@ func TestDiscoverFollowsSymlinks(t *testing.T) {
 
 func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", path, err)
 	}
-	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
@@ -155,7 +155,7 @@ func TestDiscoverUsesPCIDatabase(t *testing.T) {
 
 	deviceDir := filepath.Join(root, "class", "drm", "card0", "device")
 	renderDir := filepath.Join(deviceDir, "drm", "renderD128")
-	if err := os.MkdirAll(renderDir, 0o755); err != nil {
+	if err := os.MkdirAll(renderDir, 0o750); err != nil {
 		t.Fatalf("mkdir render dir: %v", err)
 	}
 

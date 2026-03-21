@@ -1,0 +1,48 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - bodyclose
+    - unconvert
+    - unparam
+    - errorlint
+    - revive
+    - gocritic
+    - nilerr
+    - misspell
+    - gosec
+  settings:
+    errcheck:
+      exclude-functions:
+        - os.Remove
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*os.Root).Close
+        - (*websocket.Conn).Close
+        - (net.Conn).Close
+    revive:
+      enable-all-rules: false
+      rules:
+        - name: blank-imports
+        - name: context-keys-type
+        - name: errorf
+        - name: if-return
+        - name: range
+        - name: time-naming
+        - name: unreachable-code
+        - name: unnecessary-stmt
+        - name: var-naming
+          disabled: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

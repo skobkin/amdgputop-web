@@ -1,3 +1,4 @@
+// Package sampler provides GPU telemetry sampling utilities.
 package sampler
 
 import (

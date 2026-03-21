@@ -1,3 +1,4 @@
+// Command amdgputop-web runs the HTTP/WebSocket server.
 package main
 
 import (
@@ -36,9 +37,9 @@ func main() {
 	logger := slog.New(handler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	if err := app.Run(ctx, logger, cfg); err != nil {
+	err = app.Run(ctx, logger, cfg)
+	stop()
+	if err != nil {
 		logger.Error("application error", "err", err)
 		os.Exit(1)
 	}

@@ -1,3 +1,4 @@
+// Command sampler-test exercises the sampler against local sysfs/debugfs data.
 package main
 
 import (

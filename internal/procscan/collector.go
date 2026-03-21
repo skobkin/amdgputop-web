@@ -1,3 +1,4 @@
+// Package procscan reads per-process GPU usage from procfs.
 package procscan
 
 import (
@@ -165,9 +166,7 @@ func (c *collector) scanProcess(pid int, procDir *os.Root) map[string][]rawProce
 		if err != nil {
 			continue
 		}
-		if strings.HasSuffix(target, " (deleted)") {
-			target = strings.TrimSuffix(target, " (deleted)")
-		}
+		target = strings.TrimSuffix(target, " (deleted)")
 		if !filepath.IsAbs(target) {
 			target = filepath.Clean(filepath.Join(fdBasePath, target))
 		} else {
