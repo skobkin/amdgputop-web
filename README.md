@@ -42,7 +42,7 @@ go run ./cmd/sampler-test -sample
 
 ## Docker
 
-The official image built by Github Actions is available here: [``]().
+The official image built by Github Actions is available here: [`ghcr.io/skobkin/amdgputop-web`](https://github.com/skobkin/amdgputop-web/pkgs/container/amdgputop-web).
 
 ### Docker compose
 
