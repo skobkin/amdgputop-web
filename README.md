@@ -96,27 +96,27 @@ to observe host processes.
 
 ## Configuration
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `APP_LISTEN_ADDR` | `:8080` | HTTP listen address. |
-| `APP_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`). |
-| `APP_ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed for WebSocket/HTTP. |
-| `APP_DEFAULT_GPU` | `auto` | GPU pre-selected on connect (`auto` = first detected). |
-| `APP_ENABLE_PROMETHEUS` | `false` | Enable `/metrics` endpoint with per-GPU telemetry when `true`. |
-| `APP_ENABLE_PPROF` | `false` | Expose Go pprof handlers on `/debug/pprof/*`. |
-| `APP_CHARTS_ENABLE` | `true` | Toggle historical charts feature. |
-| `APP_CHARTS_MAX_POINTS` | `7200` | Maximum data points retained per chart. |
-| `APP_SAMPLE_INTERVAL` | `2s` | Metrics sampling cadence. |
-| `APP_PROC_ENABLE` | `true` | Toggle process scanner feature. |
-| `APP_PROC_SCAN_INTERVAL` | `2s` | Interval between process snapshot scans. |
-| `APP_PROC_MAX_PIDS` | `5000` | Upper bound on tracked process count per scan. |
-| `APP_PROC_MAX_FDS_PER_PID` | `64` | Max file descriptors per PID to inspect. |
-| `APP_WS_MAX_CLIENTS` | `1024` | Maximum concurrent WebSocket clients. |
-| `APP_WS_WRITE_TIMEOUT` | `3s` | WebSocket write timeout. |
-| `APP_WS_READ_TIMEOUT` | `30s` | WebSocket read timeout. |
-| `APP_SYSFS_ROOT` | `/sys` | Override sysfs root (test-only). |
-| `APP_DEBUGFS_ROOT` | `/sys/kernel/debug` | Override debugfs root (test-only). |
-| `APP_PROC_ROOT` | `/proc` | Override procfs root (test-only). |
+| Variable                   | Default             | Description                                                    |
+|----------------------------|---------------------|----------------------------------------------------------------|
+| `APP_LISTEN_ADDR`          | `:8080`             | HTTP listen address.                                           |
+| `APP_LOG_LEVEL`            | `INFO`              | Log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`).              |
+| `APP_ALLOWED_ORIGINS`      | `*`                 | Comma-separated origins allowed for WebSocket/HTTP.            |
+| `APP_DEFAULT_GPU`          | `auto`              | GPU pre-selected on connect (`auto` = first detected).         |
+| `APP_ENABLE_PROMETHEUS`    | `false`             | Enable `/metrics` endpoint with per-GPU telemetry when `true`. |
+| `APP_ENABLE_PPROF`         | `false`             | Expose Go pprof handlers on `/debug/pprof/*`.                  |
+| `APP_CHARTS_ENABLE`        | `true`              | Toggle historical charts feature.                              |
+| `APP_CHARTS_MAX_POINTS`    | `7200`              | Maximum data points retained per chart.                        |
+| `APP_SAMPLE_INTERVAL`      | `2s`                | Metrics sampling cadence.                                      |
+| `APP_PROC_ENABLE`          | `true`              | Toggle process scanner feature.                                |
+| `APP_PROC_SCAN_INTERVAL`   | `2s`                | Interval between process snapshot scans.                       |
+| `APP_PROC_MAX_PIDS`        | `5000`              | Upper bound on tracked process count per scan.                 |
+| `APP_PROC_MAX_FDS_PER_PID` | `64`                | Max file descriptors per PID to inspect.                       |
+| `APP_WS_MAX_CLIENTS`       | `1024`              | Maximum concurrent WebSocket clients.                          |
+| `APP_WS_WRITE_TIMEOUT`     | `3s`                | WebSocket write timeout.                                       |
+| `APP_WS_READ_TIMEOUT`      | `30s`               | WebSocket read timeout.                                        |
+| `APP_SYSFS_ROOT`           | `/sys`              | Override sysfs root (test-only).                               |
+| `APP_DEBUGFS_ROOT`         | `/sys/kernel/debug` | Override debugfs root (test-only).                             |
+| `APP_PROC_ROOT`            | `/proc`             | Override procfs root (test-only).                              |
 
 See `internal/config/config.go` for the full list, including test-only roots
 (`APP_SYSFS_ROOT`, `APP_DEBUGFS_ROOT`, `APP_PROC_ROOT`).
