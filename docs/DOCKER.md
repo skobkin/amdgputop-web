@@ -22,10 +22,11 @@ docker build -t amdgputop-web:dev \
   visible.
 - **Permissions**: add the container user to the same groups that can read the
   devices (typically `video` and `render`).
-- **GPU names**: bind-mount the host's PCI database (commonly
-  `/usr/share/hwdata/pci.ids`; some distros use `/usr/share/misc/pci.ids`) so
-  the runtime can resolve vendor/device names. Example:
-  `-v /usr/share/hwdata/pci.ids:/usr/share/hwdata/pci.ids:ro`.
+- **GPU names**: the runtime image bundles Alpine's
+  `/usr/share/hwdata/pci.ids`, so vendor/device names resolve by default. If
+  you prefer to use the host's database instead, bind-mount it over the bundled
+  file (for example `-v /usr/share/hwdata/pci.ids:/usr/share/hwdata/pci.ids:ro`
+  or `/usr/share/misc/pci.ids:/usr/share/hwdata/pci.ids:ro`).
 
 See the Docker section in `README.md` for the most up-to-date `docker run`
 example. The flags above are still required—particularly `--pid=host` and
