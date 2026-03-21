@@ -46,7 +46,7 @@ RUN mkdir -p /out && \
 FROM alpine:3.23 AS runtime
 
 RUN addgroup -S app && adduser -S -G app app && \
-    apk add --no-cache ca-certificates wget
+    apk add --no-cache ca-certificates hwdata-pci wget
 
 WORKDIR /home/app
 
