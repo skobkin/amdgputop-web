@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import GpuSelector from '@/components/GpuSelector';
 import StatsTiles from '@/components/StatsTiles';
 import MemoryBars from '@/components/MemoryBars';
 import ProcTable from '@/components/ProcTable';
-import { useAppStore, type UIScale } from './store';
+import {
+  RELATIVE_TIME_REFRESH_OPTIONS,
+  useAppStore,
+  type UIScale
+} from './store';
 import {
   createVersionInfo,
   type ServerMessage,
@@ -31,6 +35,7 @@ const App = () => {
   const lastUpdatedTs = useAppStore((state) => state.lastUpdatedTs);
   const version = useAppStore((state) => state.version);
   const error = useAppStore((state) => state.error);
+  const relativeTimeRefreshMs = useAppStore((state) => state.relativeTimeRefreshMs);
   const setGPUs = useAppStore((state) => state.setGPUs);
   const setSelectedGpuId = useAppStore((state) => state.setSelectedGpuId);
   const setConnection = useAppStore((state) => state.setConnection);
@@ -45,6 +50,7 @@ const App = () => {
   const setError = useAppStore((state) => state.setError);
   const uiScale = useAppStore((state) => state.uiScale);
   const setUiScale = useAppStore((state) => state.setUiScale);
+  const setRelativeTimeRefreshMs = useAppStore((state) => state.setRelativeTimeRefreshMs);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -52,6 +58,7 @@ const App = () => {
   const selectedGpuIdRef = useRef<string | null>(null);
   const versionRef = useRef<VersionInfo | null>(null);
   const hasConnectedRef = useRef(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const fetchVersionInfo = useCallback(async (): Promise<VersionInfo | null> => {
     try {
@@ -74,6 +81,16 @@ const App = () => {
   useEffect(() => {
     versionRef.current = version;
   }, [version]);
+
+  useEffect(() => {
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, relativeTimeRefreshMs);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [relativeTimeRefreshMs]);
 
   // Fetch GPU list via REST so UI can render before WS hello arrives.
   useEffect(() => {
@@ -357,6 +374,14 @@ const App = () => {
     }));
   }, [chartsMaxPoints, features.charts, sampleIntervalMs]);
 
+  const lastFrameLabel = useMemo(() => {
+    if (!lastUpdatedTs) {
+      return null;
+    }
+    const effectiveNowMs = nowMs < lastUpdatedTs ? Date.now() : nowMs;
+    return formatTimeAgo(new Date(lastUpdatedTs).toISOString(), effectiveNowMs);
+  }, [lastUpdatedTs, nowMs]);
+
   return (
     <main data-scale={uiScale}>
       <header>
@@ -388,16 +413,16 @@ const App = () => {
         </div>
       )}
 
-      <StatsTiles sample={statsSample} />
+      <StatsTiles sample={statsSample} nowMs={nowMs} />
       <MemoryBars sample={statsSample} />
-      {features.procs ? <ProcTable snapshot={procSnapshot} /> : null}
+      {features.procs ? <ProcTable snapshot={procSnapshot} nowMs={nowMs} /> : null}
 
       <footer>
         {sampleIntervalMs ? (
           <span class="badge">Update interval {sampleIntervalMs} ms</span>
         ) : null}
-        {lastUpdatedTs ? (
-          <span>Last frame {formatTimeAgo(new Date(lastUpdatedTs).toISOString())}</span>
+        {lastFrameLabel ? (
+          <span>Last frame {lastFrameLabel}</span>
         ) : (
           <span>No telemetry received yet</span>
         )}
@@ -441,6 +466,22 @@ const App = () => {
             </select>
           </div>
         ) : null}
+        <div class="scale-picker">
+          <label for="relative-time-refresh">Time labels</label>
+          <select
+            id="relative-time-refresh"
+            value={relativeTimeRefreshMs}
+            onChange={(event) =>
+              setRelativeTimeRefreshMs(Number((event.currentTarget as HTMLSelectElement).value))
+            }
+          >
+            {RELATIVE_TIME_REFRESH_OPTIONS.map((optionMs) => (
+              <option key={optionMs} value={optionMs}>
+                {optionMs / 1000}s
+              </option>
+            ))}
+          </select>
+        </div>
         <a href="https://github.com/skobkin/amdgputop-web" target="_blank" rel="noreferrer">
           GitHub →
         </a>
