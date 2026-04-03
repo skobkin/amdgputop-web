@@ -17,6 +17,7 @@ linters:
     - revive
     - gocritic
     - nilerr
+    - nlreturn
     - misspell
     - gosec
   settings:

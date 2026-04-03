@@ -32,6 +32,7 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := lrw.ResponseWriter.Write(b)
 	lrw.bytes += int64(n)
+
 	return n, err
 }
 
@@ -39,6 +40,7 @@ func (lrw *loggingResponseWriter) Status() int {
 	if lrw.status == 0 {
 		return http.StatusOK
 	}
+
 	return lrw.status
 }
 
@@ -56,6 +58,7 @@ func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) 
 	if hj, ok := lrw.ResponseWriter.(http.Hijacker); ok {
 		return hj.Hijack()
 	}
+
 	return nil, nil, fmt.Errorf("httpserver: response writer does not support hijacking")
 }
 
@@ -63,6 +66,7 @@ func (lrw *loggingResponseWriter) Push(target string, opts *http.PushOptions) er
 	if pusher, ok := lrw.ResponseWriter.(http.Pusher); ok {
 		return pusher.Push(target, opts)
 	}
+
 	return http.ErrNotSupported
 }
 
@@ -98,5 +102,6 @@ func (s *Server) loggerFromContext(ctx context.Context) *slog.Logger {
 			return logger
 		}
 	}
+
 	return s.logger
 }

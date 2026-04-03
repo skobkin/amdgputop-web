@@ -153,6 +153,7 @@ func (r *Reader) readPercent(name string) *float64 {
 		// Some kernels report busy % scaled by 100.
 		value = clamp(value/100, 0, 100)
 	}
+
 	return float64Ptr(value)
 }
 
@@ -188,8 +189,10 @@ func (r *Reader) readUint(path string) *uint64 {
 	value, err := strconv.ParseUint(valueStr, 10, 64)
 	if err != nil {
 		r.logger.Debug("failed to parse uint value", "path", path, "value", valueStr, "err", err)
+
 		return nil
 	}
+
 	return uint64Ptr(value)
 }
 
@@ -198,6 +201,7 @@ func (r *Reader) readScaledFloat(root *os.Root, name string, divisor float64) *f
 	if err != nil {
 		return nil
 	}
+
 	return float64Ptr(value / divisor)
 }
 
@@ -206,6 +210,7 @@ func (r *Reader) readFloat(root *os.Root, name string) *float64 {
 	if err != nil {
 		return nil
 	}
+
 	return float64Ptr(value)
 }
 
@@ -225,6 +230,7 @@ func (r *Reader) readFloatValue(root *os.Root, name string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("parse float: %w", err)
 	}
+
 	return value, nil
 }
 
@@ -320,6 +326,7 @@ func detectHwmon(deviceRoot *os.Root) *os.Root {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -350,6 +357,7 @@ func (r *Reader) Close() error {
 		}
 		r.closeErr = errors.Join(errs...)
 	})
+
 	return r.closeErr
 }
 
@@ -362,6 +370,7 @@ func parseCardIndex(cardID string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("parse card index: %w", err)
 	}
+
 	return index, nil
 }
 
@@ -376,9 +385,11 @@ func extractClockMHz(line string) (float64, bool) {
 			if err != nil {
 				continue
 			}
+
 			return value, true
 		}
 	}
+
 	return 0, false
 }
 
@@ -389,13 +400,16 @@ func extractFirstFloat(line string) (float64, bool) {
 		if unicode.IsDigit(r) || r == '.' || (r == '-' && !seen) {
 			buf.WriteRune(r)
 			seen = true
+
 			continue
 		}
 		if seen {
 			// Allow decimal separators like '.' or continue for thousands separators.
 			if r == ',' {
+
 				continue
 			}
+
 			break
 		}
 		// Special case: skip spaces in prefix.
@@ -408,6 +422,7 @@ func extractFirstFloat(line string) (float64, bool) {
 	if err != nil {
 		return 0, false
 	}
+
 	return value, true
 }
 
@@ -417,10 +432,12 @@ func clamp(value, minValue, maxValue float64) float64 {
 
 func float64Ptr(value float64) *float64 {
 	v := value
+
 	return &v
 }
 
 func uint64Ptr(value uint64) *uint64 {
 	v := value
+
 	return &v
 }

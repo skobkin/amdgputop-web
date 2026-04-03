@@ -133,6 +133,7 @@ func createMinimalDevice(t *testing.T, root, cardID string) string {
 	if err := os.MkdirAll(devicePath, 0o750); err != nil {
 		t.Fatalf("failed to create device directory: %v", err)
 	}
+
 	return devicePath
 }
 
@@ -153,9 +154,11 @@ func awaitSample(t *testing.T, ch <-chan Sample) Sample {
 		if !ok {
 			t.Fatal("subscription channel closed unexpectedly")
 		}
+
 		return sample
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timed out waiting for sample")
+
 		return Sample{}
 	}
 }

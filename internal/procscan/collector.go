@@ -243,6 +243,7 @@ func (c *collector) scanProcess(pid int, procDir *os.Root) map[string][]rawProce
 	for gpuID, raw := range result {
 		out[gpuID] = append(out[gpuID], *raw)
 	}
+
 	return out
 }
 
@@ -257,6 +258,7 @@ func (c *collector) lookupUser(uid int) string {
 		}
 	}
 	c.userCache[uid] = name
+
 	return name
 }
 
@@ -303,6 +305,7 @@ func (l *gpuLookup) match(target string) (gpuEntry, bool) {
 	if entry, ok := l.byBase[filepath.Base(target)]; ok {
 		return entry, true
 	}
+
 	return gpuEntry{}, false
 }
 
@@ -314,6 +317,7 @@ func readTrimmed(root *os.Root, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(string(data)), nil
 }
 
@@ -338,8 +342,10 @@ func readUID(root *os.Root, name string) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		return uid, nil
 	}
+
 	return 0, errors.New("uid not found")
 }
 
@@ -358,6 +364,7 @@ func formatCmdline(data []byte) string {
 	if len(cmd) > 256 {
 		return cmd[:256]
 	}
+
 	return cmd
 }
 
@@ -371,5 +378,6 @@ func (c *collector) Close() error {
 			c.procRoot = nil
 		}
 	})
+
 	return c.closeErr
 }

@@ -24,6 +24,7 @@ func (s *Server) staticHandler() http.Handler {
 			data, err := fs.ReadFile(sub, "index.html")
 			if err != nil {
 				http.Error(w, "missing index asset", http.StatusNotFound)
+
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -34,12 +35,14 @@ func (s *Server) staticHandler() http.Handler {
 
 		if r.URL.Path == "/" || r.URL.Path == "" {
 			serveIndex()
+
 			return
 		}
 
 		normalized := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if normalized == "" {
 			serveIndex()
+
 			return
 		}
 
@@ -50,6 +53,7 @@ func (s *Server) staticHandler() http.Handler {
 			r2.URL = cloneURL(r.URL)
 			r2.URL.Path = "/" + normalized
 			fileServer.ServeHTTP(w, r2)
+
 			return
 		}
 
@@ -62,5 +66,6 @@ func cloneURL(u *url.URL) *url.URL {
 		return &url.URL{Path: "/"}
 	}
 	clone := *u
+
 	return &clone
 }

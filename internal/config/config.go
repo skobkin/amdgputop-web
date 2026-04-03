@@ -269,6 +269,7 @@ func splitAndTrim(value, sep string) []string {
 			out = append(out, trimmed)
 		}
 	}
+
 	return out
 }
 

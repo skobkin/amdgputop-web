@@ -108,6 +108,7 @@ func parseBytesValue(line string) (uint64, bool) {
 	}
 
 	multiplier := bytesUnitMultiplier(unit)
+
 	return uint64(value * float64(multiplier)), true
 }
 
@@ -125,6 +126,7 @@ func parseEngineValue(line string) (uint64, bool) {
 	if err != nil {
 		return 0, false
 	}
+
 	return uint64(value * float64(engineUnitMultiplier(unit))), true
 }
 
@@ -174,5 +176,6 @@ func parseIntValue(line string) (int, bool) {
 			return value, true
 		}
 	}
+
 	return 0, false
 }

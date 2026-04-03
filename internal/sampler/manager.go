@@ -47,6 +47,7 @@ func NewManager(interval time.Duration, readers map[string]*Reader, logger *slog
 		subscribers: make(map[string]map[*subscriber]struct{}),
 		activity:    make(chan struct{}, 1),
 	}
+
 	return manager, nil
 }
 
@@ -59,6 +60,7 @@ func (m *Manager) EnableLazy(idleTTL time.Duration) error {
 	defer m.mu.Unlock()
 	m.lazy = true
 	m.idleTTL = idleTTL
+
 	return nil
 }
 
@@ -66,6 +68,7 @@ func (m *Manager) EnableLazy(idleTTL time.Duration) error {
 func (m *Manager) Run(ctx context.Context) error {
 	if len(m.readers) == 0 {
 		<-ctx.Done()
+
 		return m.Close()
 	}
 
@@ -80,6 +83,7 @@ func (m *Manager) Run(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				m.logger.Info("sampler stopping", "reason", ctx.Err())
+
 				return m.Close()
 			case <-ticker.C:
 				m.sampleAll()
@@ -97,6 +101,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 		if !m.waitUntilDemand(ctx) {
 			m.logger.Info("sampler stopping", "reason", ctx.Err())
+
 			return m.Close()
 		}
 		if sleeping {
@@ -113,6 +118,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			timer.Stop()
 			m.logger.Info("sampler stopping", "reason", ctx.Err())
+
 			return m.Close()
 		case <-timer.C:
 		}
@@ -124,6 +130,7 @@ func (m *Manager) Latest(gpuID string) (Sample, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	sample, ok := m.latest[gpuID]
+
 	return sample, ok
 }
 
@@ -149,6 +156,7 @@ func (m *Manager) Current(gpuID string) (Sample, bool, error) {
 	sample := reader.Sample()
 	m.storeSample(sample)
 	m.touchDemand(now, true)
+
 	return sample, true, nil
 }
 
@@ -170,6 +178,7 @@ func (m *Manager) CurrentAll() map[string]Sample {
 		m.storeSample(sample)
 	}
 	m.touchDemand(now, true)
+
 	return m.copyLatest()
 }
 
@@ -211,6 +220,7 @@ func (m *Manager) GPUIDs() []string {
 	for id := range m.readers {
 		ids = append(ids, id)
 	}
+
 	return ids
 }
 
@@ -236,6 +246,7 @@ func (m *Manager) Ready() bool {
 func (m *Manager) HasDemand() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.hasDemandLocked(time.Now())
 }
 
@@ -255,6 +266,7 @@ func (m *Manager) currentLockedRead(gpuID string, now time.Time) (Sample, bool) 
 	if m.lazy && now.Sub(sample.Timestamp) > m.idleTTL {
 		return Sample{}, false
 	}
+
 	return sample, true
 }
 
@@ -308,6 +320,7 @@ func (m *Manager) hasDemandLocked(now time.Time) bool {
 	if m.lastDemandAt.IsZero() {
 		return false
 	}
+
 	return now.Sub(m.lastDemandAt) < m.idleTTL
 }
 
@@ -344,6 +357,7 @@ func (m *Manager) sampleAllUnlocked() []Sample {
 	for _, reader := range m.readers {
 		samples = append(samples, reader.Sample())
 	}
+
 	return samples
 }
 
@@ -399,6 +413,7 @@ func (m *Manager) signalActivity() {
 func (m *Manager) copyLatest() map[string]Sample {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.copyLatestLocked()
 }
 
@@ -407,6 +422,7 @@ func (m *Manager) copyLatestLocked() map[string]Sample {
 	for id, sample := range m.latest {
 		out[id] = sample
 	}
+
 	return out
 }
 
@@ -424,6 +440,7 @@ func (m *Manager) Close() error {
 		}
 		m.closeErr = errors.Join(errs...)
 	})
+
 	return m.closeErr
 }
 

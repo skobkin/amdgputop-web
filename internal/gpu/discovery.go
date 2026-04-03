@@ -48,8 +48,10 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
 			logger.Warn("drm class path missing", "path", filepath.Join(root, drmClassPath))
+
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("read drm class dir: %w", err)
 	}
 
@@ -75,6 +77,7 @@ func Discover(root string, logger *slog.Logger) ([]Info, error) {
 		info, err := loadCardInfo(sysRoot, absRoot, name, cardRelPath)
 		if err != nil {
 			logger.Warn("failed to load card info", "card", name, "err", err)
+
 			continue
 		}
 		infos = append(infos, info)
@@ -178,6 +181,7 @@ func findRenderNode(deviceRoot *os.Root) string {
 			return filepath.Join("/dev/dri", name)
 		}
 	}
+
 	return ""
 }
 
@@ -190,6 +194,7 @@ func parseKeyValue(data, key string) string {
 			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
 		}
 	}
+
 	return ""
 }
 
@@ -198,6 +203,7 @@ func readTrim(root *os.Root, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(string(data)), nil
 }
 
@@ -220,6 +226,7 @@ func openResolvedRoot(sysRoot *os.Root, absRoot, baseRelPath, name string) (*os.
 	if err != nil {
 		return nil, fmt.Errorf("open resolved %s root: %w", name, err)
 	}
+
 	return targetRoot, nil
 }
 
@@ -236,5 +243,6 @@ func allDigits(value string) bool {
 			return false
 		}
 	}
+
 	return true
 }
