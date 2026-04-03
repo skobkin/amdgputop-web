@@ -35,6 +35,8 @@ type Reader struct {
 	cardID        string
 	cardIndex     int
 	logger        *slog.Logger
+	sysRoot       *os.Root
+	debugRoot     *os.Root
 	deviceRoot    *os.Root
 	debugCardRoot *os.Root
 	hwmonRoot     *os.Root
@@ -58,17 +60,19 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 	if err != nil {
 		return nil, fmt.Errorf("open sysfs root: %w", err)
 	}
-	defer sysRoot.Close()
 
 	deviceRoot, err := sysRoot.OpenRoot(filepath.Join(drmClassPath, cardID, "device"))
 	if err != nil {
+		_ = sysRoot.Close()
+
 		return nil, fmt.Errorf("open device root: %w", err)
 	}
 
+	var debugRoot *os.Root
 	var debugCardRoot *os.Root
 	if debugfsRoot != "" {
 		if dbgRoot, err := os.OpenRoot(debugfsRoot); err == nil {
-			defer dbgRoot.Close()
+			debugRoot = dbgRoot
 			if sub, err := dbgRoot.OpenRoot(filepath.Join("dri", strconv.Itoa(cardIndex))); err == nil {
 				debugCardRoot = sub
 			}
@@ -79,6 +83,8 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 		cardID:        cardID,
 		cardIndex:     cardIndex,
 		logger:        logger.With("card", cardID),
+		sysRoot:       sysRoot,
+		debugRoot:     debugRoot,
 		deviceRoot:    deviceRoot,
 		debugCardRoot: debugCardRoot,
 		hwmonRoot:     detectHwmon(deviceRoot),
@@ -158,6 +164,10 @@ func (r *Reader) readPercent(name string) *float64 {
 }
 
 func (r *Reader) readCurrentClock(filename string) *float64 {
+	if r.deviceRoot == nil {
+		return nil
+	}
+
 	raw, err := r.deviceRoot.ReadFile(filename)
 	if err != nil {
 		return nil
@@ -178,6 +188,10 @@ func (r *Reader) readCurrentClock(filename string) *float64 {
 }
 
 func (r *Reader) readUint(path string) *uint64 {
+	if r.deviceRoot == nil {
+		return nil
+	}
+
 	data, err := r.deviceRoot.ReadFile(path)
 	if err != nil {
 		return nil
@@ -354,6 +368,18 @@ func (r *Reader) Close() error {
 				errs = append(errs, fmt.Errorf("close device root: %w", err))
 			}
 			r.deviceRoot = nil
+		}
+		if r.debugRoot != nil {
+			if err := r.debugRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close debugfs root: %w", err))
+			}
+			r.debugRoot = nil
+		}
+		if r.sysRoot != nil {
+			if err := r.sysRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close sysfs root: %w", err))
+			}
+			r.sysRoot = nil
 		}
 		r.closeErr = errors.Join(errs...)
 	})

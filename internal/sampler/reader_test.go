@@ -72,6 +72,37 @@ func TestReaderSampleDebugFallback(t *testing.T) {
 	assertUintEqual(t, sample.Metrics.GTTTotalBytes, 34359738368)
 }
 
+func TestReaderSampleWithNilRoots(t *testing.T) {
+	t.Parallel()
+
+	reader := &Reader{
+		cardID:    "card0",
+		cardIndex: 0,
+		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	sample := reader.Sample()
+
+	if sample.GPUId != "card0" {
+		t.Fatalf("unexpected GPU id %q", sample.GPUId)
+	}
+	if sample.Timestamp.IsZero() {
+		t.Fatalf("expected timestamp to be set")
+	}
+	if sample.Metrics.GPUBusyPct != nil || sample.Metrics.MemBusyPct != nil {
+		t.Fatalf("expected missing utilization metrics when roots are nil")
+	}
+	if sample.Metrics.SCLKMHz != nil || sample.Metrics.MCLKMHz != nil {
+		t.Fatalf("expected missing clock metrics when roots are nil")
+	}
+	if sample.Metrics.VRAMUsedBytes != nil || sample.Metrics.VRAMTotalBytes != nil {
+		t.Fatalf("expected missing VRAM metrics when roots are nil")
+	}
+	if sample.Metrics.GTTUsedBytes != nil || sample.Metrics.GTTTotalBytes != nil {
+		t.Fatalf("expected missing GTT metrics when roots are nil")
+	}
+}
+
 func assertFloatEqual(t *testing.T, value *float64, expected float64) {
 	t.Helper()
 	if value == nil {
