@@ -118,10 +118,20 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 
 	m.logger.Info("process scanner started", "interval", m.cfg.ScanInterval, "lazy", true, "idle_ttl", m.idleTTL)
+	sleeping := false
 	for {
+		if !m.HasDemand() && !sleeping {
+			m.logger.Info("process scanner going idle")
+			sleeping = true
+		}
+
 		if !m.waitUntilDemand(ctx) {
 			m.logger.Info("process scanner stopping", "reason", ctx.Err())
 			return m.Close()
+		}
+		if sleeping {
+			m.logger.Info("process scanner resuming from idle")
+			sleeping = false
 		}
 
 		if !m.freshWithin(m.cfg.ScanInterval) {

@@ -88,10 +88,20 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 
 	m.logger.Info("sampler started", "lazy", true, "idle_ttl", m.idleTTL)
+	sleeping := false
 	for {
+		if !m.HasDemand() && !sleeping {
+			m.logger.Info("sampler going idle")
+			sleeping = true
+		}
+
 		if !m.waitUntilDemand(ctx) {
 			m.logger.Info("sampler stopping", "reason", ctx.Err())
 			return m.Close()
+		}
+		if sleeping {
+			m.logger.Info("sampler resuming from idle")
+			sleeping = false
 		}
 
 		if !m.allFreshWithin(m.interval) {
