@@ -190,8 +190,9 @@ func (c *gpuMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	if c.sampler == nil {
 		return
 	}
+	samples := c.sampler.CurrentAll()
 	for _, info := range c.gpus {
-		sample, ok := c.sampler.Latest(info.ID)
+		sample, ok := samples[info.ID]
 		if !ok {
 			continue
 		}

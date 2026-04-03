@@ -47,6 +47,11 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 	if err != nil {
 		return fmt.Errorf("init sampler manager: %w", err)
 	}
+	if cfg.LazySampler {
+		if err := samplerManager.EnableLazy(cfg.LazySamplerIdleTTL); err != nil {
+			return fmt.Errorf("enable lazy sampler: %w", err)
+		}
+	}
 	defer func() {
 		if err := samplerManager.Close(); err != nil {
 			appLogger.Warn("sampler manager close", "err", err)
@@ -62,6 +67,11 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		procManager, err = procscan.NewManager(cfg.Proc, cfg.ProcRoot, gpus, procLogger)
 		if err != nil {
 			return fmt.Errorf("init proc scanner: %w", err)
+		}
+		if cfg.LazySampler {
+			if err := procManager.EnableLazy(cfg.LazySamplerIdleTTL); err != nil {
+				return fmt.Errorf("enable lazy proc scanner: %w", err)
+			}
 		}
 		defer func() {
 			if err := procManager.Close(); err != nil {

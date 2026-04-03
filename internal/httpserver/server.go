@@ -250,7 +250,11 @@ func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID s
 		return
 	}
 
-	sample, ok := s.sampler.Latest(gpuID)
+	sample, ok, err := s.sampler.Current(gpuID)
+	if err != nil {
+		http.Error(w, "metrics sampler unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if !ok {
 		http.Error(w, "no sample available", http.StatusServiceUnavailable)
 		return
@@ -271,7 +275,11 @@ func (s *Server) serveGPUProcs(w http.ResponseWriter, r *http.Request, gpuID str
 		return
 	}
 
-	snapshot, ok := s.proc.Latest(gpuID)
+	snapshot, ok, err := s.proc.Current(gpuID)
+	if err != nil {
+		http.Error(w, "process scanner unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if !ok {
 		http.Error(w, "no process data available", http.StatusServiceUnavailable)
 		return
@@ -716,6 +724,11 @@ func (s *Server) readiness() readyResponse {
 	if len(readers) == 0 {
 		resp.Status = "degraded"
 		resp.Reason = "no_metrics_readers"
+		return resp
+	}
+
+	if s.cfg.LazySampler && !s.sampler.Ready() && !s.sampler.HasDemand() {
+		resp.Status = "ok"
 		return resp
 	}
 

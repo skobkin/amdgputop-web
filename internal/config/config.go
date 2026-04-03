@@ -12,19 +12,21 @@ import (
 
 // Config represents runtime configuration sourced from environment variables.
 type Config struct {
-	ListenAddr       string
-	SampleInterval   time.Duration
-	AllowedOrigins   []string
-	DefaultGPU       string
-	EnablePrometheus bool
-	EnablePprof      bool
-	LogLevel         slog.Level
-	SysfsRoot        string
-	DebugfsRoot      string
-	ProcRoot         string
-	WS               WebsocketConfig
-	Proc             ProcConfig
-	Charts           ChartsConfig
+	ListenAddr         string
+	SampleInterval     time.Duration
+	LazySampler        bool
+	LazySamplerIdleTTL time.Duration
+	AllowedOrigins     []string
+	DefaultGPU         string
+	EnablePrometheus   bool
+	EnablePprof        bool
+	LogLevel           slog.Level
+	SysfsRoot          string
+	DebugfsRoot        string
+	ProcRoot           string
+	WS                 WebsocketConfig
+	Proc               ProcConfig
+	Charts             ChartsConfig
 }
 
 // WebsocketConfig captures tunables for WebSocket handling.
@@ -51,16 +53,18 @@ type ChartsConfig struct {
 // Load parses configuration from environment variables, applying defaults.
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:       ":8080",
-		SampleInterval:   2 * time.Second,
-		AllowedOrigins:   []string{"*"},
-		DefaultGPU:       "auto",
-		EnablePrometheus: false,
-		EnablePprof:      false,
-		LogLevel:         slog.LevelInfo,
-		SysfsRoot:        "/sys",
-		DebugfsRoot:      "/sys/kernel/debug",
-		ProcRoot:         "/proc",
+		ListenAddr:         ":8080",
+		SampleInterval:     2 * time.Second,
+		LazySampler:        true,
+		LazySamplerIdleTTL: 30 * time.Second,
+		AllowedOrigins:     []string{"*"},
+		DefaultGPU:         "auto",
+		EnablePrometheus:   false,
+		EnablePprof:        false,
+		LogLevel:           slog.LevelInfo,
+		SysfsRoot:          "/sys",
+		DebugfsRoot:        "/sys/kernel/debug",
+		ProcRoot:           "/proc",
 		WS: WebsocketConfig{
 			MaxClients:   1024,
 			WriteTimeout: 3 * time.Second,
@@ -91,6 +95,25 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("APP_SAMPLE_INTERVAL must be > 0")
 		}
 		cfg.SampleInterval = duration
+	}
+
+	if value := strings.TrimSpace(os.Getenv("APP_LAZY_SAMPLER")); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse APP_LAZY_SAMPLER: %w", err)
+		}
+		cfg.LazySampler = enabled
+	}
+
+	if value := strings.TrimSpace(os.Getenv("APP_LAZY_SAMPLER_IDLE_TTL")); value != "" {
+		duration, err := time.ParseDuration(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse APP_LAZY_SAMPLER_IDLE_TTL: %w", err)
+		}
+		if duration <= 0 {
+			return Config{}, fmt.Errorf("APP_LAZY_SAMPLER_IDLE_TTL must be > 0")
+		}
+		cfg.LazySamplerIdleTTL = duration
 	}
 
 	if value := strings.TrimSpace(os.Getenv("APP_ALLOWED_ORIGINS")); value != "" {
