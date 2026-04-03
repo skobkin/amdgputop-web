@@ -77,6 +77,7 @@ func NewManager(cfg config.ProcConfig, procRoot string, gpus []gpu.Info, logger 
 		return nil, fmt.Errorf("init collector: %w", err)
 	}
 	manager.collector = coll
+
 	return manager, nil
 }
 
@@ -89,6 +90,7 @@ func (m *Manager) EnableLazy(idleTTL time.Duration) error {
 	defer m.mu.Unlock()
 	m.lazy = true
 	m.idleTTL = idleTTL
+
 	return nil
 }
 
@@ -96,6 +98,7 @@ func (m *Manager) EnableLazy(idleTTL time.Duration) error {
 func (m *Manager) Run(ctx context.Context) error {
 	if !m.cfg.Enable || len(m.gpuIDs) == 0 {
 		<-ctx.Done()
+
 		return m.Close()
 	}
 
@@ -110,6 +113,7 @@ func (m *Manager) Run(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				m.logger.Info("process scanner stopping", "reason", ctx.Err())
+
 				return m.Close()
 			case <-ticker.C:
 				m.scanAll()
@@ -127,6 +131,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 		if !m.waitUntilDemand(ctx) {
 			m.logger.Info("process scanner stopping", "reason", ctx.Err())
+
 			return m.Close()
 		}
 		if sleeping {
@@ -143,6 +148,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			timer.Stop()
 			m.logger.Info("process scanner stopping", "reason", ctx.Err())
+
 			return m.Close()
 		case <-timer.C:
 		}
@@ -154,6 +160,7 @@ func (m *Manager) Latest(gpuID string) (Snapshot, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	snapshot, ok := m.latest[gpuID]
+
 	return snapshot, ok
 }
 
@@ -178,6 +185,7 @@ func (m *Manager) Current(gpuID string) (Snapshot, bool, error) {
 	m.performScan(now)
 	m.touchDemand(now, true)
 	snapshot, ok := m.Latest(gpuID)
+
 	return snapshot, ok, nil
 }
 
@@ -211,6 +219,7 @@ func (m *Manager) Subscribe(gpuID string) (<-chan Snapshot, func(), error) {
 	unsubscribe := func() {
 		m.removeSubscriber(gpuID, sub)
 	}
+
 	return sub.channel(), unsubscribe, nil
 }
 
@@ -220,6 +229,7 @@ func (m *Manager) GPUIDs() []string {
 	defer m.mu.RUnlock()
 	ids := make([]string, len(m.gpuIDs))
 	copy(ids, m.gpuIDs)
+
 	return ids
 }
 
@@ -227,6 +237,7 @@ func (m *Manager) GPUIDs() []string {
 func (m *Manager) Ready() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return !m.lastScan.IsZero()
 }
 
@@ -234,6 +245,7 @@ func (m *Manager) Ready() bool {
 func (m *Manager) HasDemand() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.hasDemandLocked(time.Now())
 }
 
@@ -253,6 +265,7 @@ func (m *Manager) currentLockedRead(gpuID string, now time.Time) (Snapshot, bool
 	if m.lazy && now.Sub(snapshot.Timestamp) > m.idleTTL {
 		return Snapshot{}, false
 	}
+
 	return snapshot, true
 }
 
@@ -280,6 +293,7 @@ func (m *Manager) hasDemandLocked(now time.Time) bool {
 	if m.lastDemandAt.IsZero() {
 		return false
 	}
+
 	return now.Sub(m.lastDemandAt) < m.idleTTL
 }
 
@@ -292,6 +306,7 @@ func (m *Manager) freshWithin(maxAge time.Duration) bool {
 	if m.lastScan.IsZero() {
 		return false
 	}
+
 	return time.Since(m.lastScan) <= maxAge
 }
 
@@ -305,6 +320,7 @@ func (m *Manager) performScan(now time.Time) {
 	collections, err := m.collector.collect()
 	if err != nil {
 		m.logger.Warn("process scan failed", "err", err)
+
 		return
 	}
 
@@ -371,6 +387,7 @@ func (m *Manager) performScan(now time.Time) {
 			if vi == vj {
 				return processes[i].PID < processes[j].PID
 			}
+
 			return vi > vj
 		})
 
@@ -421,6 +438,7 @@ func (m *Manager) getPrevEngine(gpuID string) map[int]uint64 {
 	if totals, ok := m.prevEngine[gpuID]; ok {
 		return totals
 	}
+
 	return nil
 }
 
@@ -468,12 +486,14 @@ func (m *Manager) Close() error {
 		}
 		m.closeErr = errors.Join(errs...)
 	})
+
 	return m.closeErr
 }
 
 func (m *Manager) knowsGPU(gpuID string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.knowsGPULocked(gpuID)
 }
 
@@ -483,6 +503,7 @@ func (m *Manager) knowsGPULocked(gpuID string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 

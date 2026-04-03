@@ -423,6 +423,7 @@ func TestServerGracefulShutdown(t *testing.T) {
 		if err := conn.Close(); err != nil {
 			t.Fatalf("close dialed conn: %v", err)
 		}
+
 		return true
 	})
 
@@ -1024,6 +1025,7 @@ func newTestHTTPServer(t *testing.T, cfg config.Config, gpus []gpu.Info, sampler
 	srv := New(cfg, logger, gpus, samplerManager, procManager)
 	ts := httptest.NewServer(srv.httpServer.Handler)
 	t.Cleanup(ts.Close)
+
 	return ts
 }
 
@@ -1037,6 +1039,7 @@ func freeLoopbackAddress(t *testing.T) string {
 	if err := l.Close(); err != nil {
 		t.Fatalf("close listener: %v", err)
 	}
+
 	return addr
 }
 
@@ -1077,6 +1080,7 @@ func createDeviceTree(t *testing.T, root string) string {
 	if err := mkdirAll(devicePath); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+
 	return devicePath
 }
 
@@ -1109,6 +1113,7 @@ func expectHelloMessage(ctx context.Context, conn *websocket.Conn) (map[string]a
 	if payload["type"] != "hello" {
 		return nil, fmt.Errorf("expected hello message, got %v", payload["type"])
 	}
+
 	return payload, nil
 }
 
@@ -1193,10 +1198,12 @@ func metricGaugeValue(t *testing.T, families map[string]*dto.MetricFamily, name 
 			if metric.Gauge == nil || metric.Gauge.Value == nil {
 				t.Fatalf("metric %s missing gauge value for gpu %s", name, "card0")
 			}
+
 			return metric.Gauge.GetValue()
 		}
 	}
 	t.Fatalf("metric %s missing gpu_id=%s", name, "card0")
+
 	return 0
 }
 
@@ -1211,5 +1218,6 @@ func toWebsocketURL(httpURL string) string {
 	case "https":
 		u.Scheme = "wss"
 	}
+
 	return u.String()
 }

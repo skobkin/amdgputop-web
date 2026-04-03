@@ -48,6 +48,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.GPUBusyPct == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.GPUBusyPct, true
 			},
 		},
@@ -58,6 +59,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.MemBusyPct == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.MemBusyPct, true
 			},
 		},
@@ -68,6 +70,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.SCLKMHz == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.SCLKMHz, true
 			},
 		},
@@ -78,6 +81,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.MCLKMHz == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.MCLKMHz, true
 			},
 		},
@@ -88,6 +92,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.TempC == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.TempC, true
 			},
 		},
@@ -98,6 +103,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.FanRPM == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.FanRPM, true
 			},
 		},
@@ -108,6 +114,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.PowerW == nil {
 					return 0, false
 				}
+
 				return *sample.Metrics.PowerW, true
 			},
 		},
@@ -118,6 +125,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.VRAMUsedBytes == nil {
 					return 0, false
 				}
+
 				return float64(*sample.Metrics.VRAMUsedBytes), true
 			},
 		},
@@ -128,6 +136,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.VRAMTotalBytes == nil {
 					return 0, false
 				}
+
 				return float64(*sample.Metrics.VRAMTotalBytes), true
 			},
 		},
@@ -138,6 +147,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.GTTUsedBytes == nil {
 					return 0, false
 				}
+
 				return float64(*sample.Metrics.GTTUsedBytes), true
 			},
 		},
@@ -148,6 +158,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Metrics.GTTTotalBytes == nil {
 					return 0, false
 				}
+
 				return float64(*sample.Metrics.GTTTotalBytes), true
 			},
 		},
@@ -158,6 +169,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if sample.Timestamp.IsZero() {
 					return 0, false
 				}
+
 				return float64(sample.Timestamp.Unix()), true
 			},
 		},
@@ -172,6 +184,7 @@ func newGPUMetricsCollector(gpus []gpu.Info, samplerManager *sampler.Manager) pr
 				if age < 0 {
 					age = 0
 				}
+
 				return age, true
 			},
 		},

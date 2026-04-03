@@ -108,6 +108,7 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.logger.Info("listener stopped")
+
 	return nil
 }
 
@@ -120,6 +121,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -131,6 +133,7 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -153,6 +156,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -163,6 +167,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(info); err != nil {
 		logger.Error("failed to encode version response", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -171,11 +176,13 @@ func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	if r.URL.Path != "/api" && r.URL.Path != "/api/" {
 		http.NotFound(w, r)
+
 		return
 	}
 
@@ -184,6 +191,7 @@ func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("failed to read api docs asset", "err", err)
 		http.Error(w, "missing api docs", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -197,6 +205,7 @@ func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -205,6 +214,7 @@ func (s *Server) handleAPIGPUs(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(s.gpus); err != nil {
 		logger.Error("failed to encode gpu list", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -213,24 +223,28 @@ func (s *Server) handleAPIGPUSubresource(w http.ResponseWriter, r *http.Request)
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	const prefix = "/api/gpus/"
 	if !strings.HasPrefix(r.URL.Path, prefix) {
 		http.NotFound(w, r)
+
 		return
 	}
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	segments := strings.Split(rest, "/")
 	if len(segments) != 2 || segments[0] == "" {
 		http.NotFound(w, r)
+
 		return
 	}
 
 	gpuID := segments[0]
 	if _, ok := s.gpuIndex[gpuID]; !ok {
 		http.NotFound(w, r)
+
 		return
 	}
 
@@ -247,16 +261,19 @@ func (s *Server) handleAPIGPUSubresource(w http.ResponseWriter, r *http.Request)
 func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID string) {
 	if s.sampler == nil {
 		http.Error(w, "metrics sampler unavailable", http.StatusServiceUnavailable)
+
 		return
 	}
 
 	sample, ok, err := s.sampler.Current(gpuID)
 	if err != nil {
 		http.Error(w, "metrics sampler unavailable", http.StatusServiceUnavailable)
+
 		return
 	}
 	if !ok {
 		http.Error(w, "no sample available", http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -265,6 +282,7 @@ func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID s
 	if err := json.NewEncoder(w).Encode(sample); err != nil {
 		logger.Error("failed to encode gpu metrics", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -272,16 +290,19 @@ func (s *Server) serveGPUMetrics(w http.ResponseWriter, r *http.Request, gpuID s
 func (s *Server) serveGPUProcs(w http.ResponseWriter, r *http.Request, gpuID string) {
 	if s.proc == nil {
 		http.Error(w, "process scanner unavailable", http.StatusServiceUnavailable)
+
 		return
 	}
 
 	snapshot, ok, err := s.proc.Current(gpuID)
 	if err != nil {
 		http.Error(w, "process scanner unavailable", http.StatusServiceUnavailable)
+
 		return
 	}
 	if !ok {
 		http.Error(w, "no process data available", http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -290,6 +311,7 @@ func (s *Server) serveGPUProcs(w http.ResponseWriter, r *http.Request, gpuID str
 	if err := json.NewEncoder(w).Encode(snapshot); err != nil {
 		logger.Error("failed to encode gpu process data", "gpu_id", gpuID, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -299,12 +321,14 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	if !s.reserveWS() {
 		reqLogger.Warn("websocket rejected", "reason", "capacity")
 		http.Error(w, "websocket capacity reached", http.StatusServiceUnavailable)
+
 		return
 	}
 	defer s.releaseWS()
@@ -316,6 +340,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, opts)
 	if err != nil {
 		reqLogger.Warn("websocket accept failed", "err", err)
+
 		return
 	}
 	defer closeWebsocket(s.logger, conn)
@@ -416,6 +441,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		currentGPU = target
 		logger.Info("ws subscribed", "gpu_id", target)
+
 		return nil
 	}
 
@@ -434,6 +460,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				subCh = nil
 				currentGPU = ""
+
 				continue
 			}
 			if !s.enqueueMessage(outbound, api.NewStatsMessage(sample), logger) {
@@ -442,6 +469,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case snapshot, ok := <-procCh:
 			if !ok {
 				procCh = nil
+
 				continue
 			}
 			if !s.enqueueMessage(outbound, api.NewProcsMessage(snapshot), logger) {
@@ -450,6 +478,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case data, ok := <-messageCh:
 			if !ok {
 				messageCh = nil
+
 				continue
 			}
 			if err := s.handleClientMessage(outbound, data, switchSubscription, defaultGPU, logger); err != nil {
@@ -457,12 +486,14 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				logger.Warn("client message handling error", "err", err)
+
 				return
 			}
 		case err := <-readErrCh:
 			if err != nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 				logger.Warn("websocket read error", "err", err)
 			}
+
 			return
 		case <-ctx.Done():
 			return
@@ -480,6 +511,7 @@ func (s *Server) defaultGPU() string {
 	if len(s.gpus) > 0 {
 		return s.gpus[0].ID
 	}
+
 	return ""
 }
 
@@ -500,6 +532,7 @@ func (s *Server) readMessages(ctx context.Context, conn *websocket.Conn, out cha
 				continue
 			}
 			errCh <- err
+
 			return
 		}
 		if msgType != websocket.MessageText {
@@ -517,6 +550,7 @@ func (s *Server) handleClientMessage(outbound *wsOutbound, data []byte, switchSu
 	var envelope api.ClientMessage
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		logger.Debug("invalid client message", "err", err)
+
 		return nil
 	}
 
@@ -527,6 +561,7 @@ func (s *Server) handleClientMessage(outbound *wsOutbound, data []byte, switchSu
 			if !s.enqueueError(outbound, "invalid subscribe payload", logger) {
 				return fmt.Errorf("failed to enqueue subscribe error")
 			}
+
 			return nil
 		}
 		target := msg.GPUId
@@ -537,12 +572,14 @@ func (s *Server) handleClientMessage(outbound *wsOutbound, data []byte, switchSu
 			if !s.enqueueError(outbound, "no gpu_id provided and no default available", logger) {
 				return fmt.Errorf("failed to enqueue gpu missing error")
 			}
+
 			return nil
 		}
 		if err := switchSubscription(target); err != nil {
 			if !s.enqueueError(outbound, err.Error(), logger) {
 				return fmt.Errorf("failed to enqueue subscription error")
 			}
+
 			return nil
 		}
 	case "ping":
@@ -552,6 +589,7 @@ func (s *Server) handleClientMessage(outbound *wsOutbound, data []byte, switchSu
 	default:
 		logger.Debug("unknown message type", "type", envelope.Type)
 	}
+
 	return nil
 }
 
@@ -570,6 +608,7 @@ func (s *Server) wsWriter(ctx context.Context, conn *websocket.Conn, outbound *w
 					logger.Warn("websocket write failed", "err", err)
 				}
 				cancel()
+
 				return
 			}
 			s.wsSent.Add(1)
@@ -586,6 +625,7 @@ func (s *Server) writeRaw(ctx context.Context, conn *websocket.Conn, data []byte
 	if cancel != nil {
 		defer cancel()
 	}
+
 	return conn.Write(writeCtx, websocket.MessageText, data)
 }
 
@@ -593,12 +633,15 @@ func (s *Server) enqueueMessage(outbound *wsOutbound, payload any, logger *slog.
 	data, err := json.Marshal(payload)
 	if err != nil {
 		logger.Error("failed to marshal websocket payload", "err", err)
+
 		return false
 	}
 	if !outbound.enqueue(data) {
 		logger.Warn("websocket outbound queue unavailable")
+
 		return false
 	}
+
 	return true
 }
 
@@ -609,6 +652,7 @@ func (s *Server) enqueueError(outbound *wsOutbound, msg string, logger *slog.Log
 func (s *Server) reserveWS() bool {
 	if s.maxWSClients <= 0 {
 		s.wsActive.Add(1)
+
 		return true
 	}
 
@@ -616,6 +660,7 @@ func (s *Server) reserveWS() bool {
 		current := s.wsActive.Load()
 		if current >= s.maxWSClients {
 			s.wsRejected.Add(1)
+
 			return false
 		}
 		if s.wsActive.CompareAndSwap(current, current+1) {
@@ -700,6 +745,7 @@ func originPatterns(origins []string) []string {
 	}
 	dst := make([]string, len(origins))
 	copy(dst, origins)
+
 	return dst
 }
 
@@ -710,12 +756,14 @@ func (s *Server) readiness() readyResponse {
 
 	if len(s.gpus) == 0 {
 		resp.Status = "ok"
+
 		return resp
 	}
 
 	if s.sampler == nil {
 		resp.Status = "degraded"
 		resp.Reason = "sampler_not_configured"
+
 		return resp
 	}
 
@@ -724,21 +772,25 @@ func (s *Server) readiness() readyResponse {
 	if len(readers) == 0 {
 		resp.Status = "degraded"
 		resp.Reason = "no_metrics_readers"
+
 		return resp
 	}
 
 	if s.cfg.LazySampler && !s.sampler.Ready() && !s.sampler.HasDemand() {
 		resp.Status = "ok"
+
 		return resp
 	}
 
 	if s.sampler.Ready() {
 		resp.Status = "ok"
+
 		return resp
 	}
 
 	resp.Status = "initializing"
 	resp.Reason = "waiting_for_samples"
+
 	return resp
 }
 
@@ -759,6 +811,7 @@ func newWSOutbound(size int, dropCounter *atomic.Uint64) *wsOutbound {
 	if size <= 0 {
 		size = 1
 	}
+
 	return &wsOutbound{
 		ch:    make(chan []byte, size),
 		drops: dropCounter,
@@ -768,6 +821,7 @@ func newWSOutbound(size int, dropCounter *atomic.Uint64) *wsOutbound {
 func (o *wsOutbound) enqueue(msg []byte) bool {
 	if o.closed.Load() {
 		o.countDrop()
+
 		return false
 	}
 
@@ -789,6 +843,7 @@ func (o *wsOutbound) enqueue(msg []byte) bool {
 
 	if o.closed.Load() {
 		o.countDrop()
+
 		return false
 	}
 
@@ -797,6 +852,7 @@ func (o *wsOutbound) enqueue(msg []byte) bool {
 		return true
 	default:
 		o.countDrop()
+
 		return false
 	}
 }

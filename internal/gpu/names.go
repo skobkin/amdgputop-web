@@ -56,6 +56,7 @@ func loadPCIDatabase() *pcidb.PCIDB {
 	if pciErr != nil || pciDB == nil {
 		return nil
 	}
+
 	return pciDB
 }
 
@@ -73,6 +74,7 @@ func normalizePCIID(raw string) string {
 	if len(value) < 4 {
 		value = strings.Repeat("0", 4-len(value)) + value
 	}
+
 	return value
 }
 
@@ -84,6 +86,7 @@ func splitPCIIdentifier(pciID string) (vendorID string, deviceID string) {
 	if len(parts) != 2 {
 		return "", ""
 	}
+
 	return parts[0], parts[1]
 }
 
@@ -108,5 +111,6 @@ func shouldUseResolvedName(current, resolved string) bool {
 	if strings.HasPrefix(lower, "0x") {
 		return true
 	}
+
 	return false
 }

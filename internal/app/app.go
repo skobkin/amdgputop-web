@@ -34,6 +34,7 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 		reader, err := sampler.NewReader(info.ID, cfg.SysfsRoot, cfg.DebugfsRoot, readerLogger)
 		if err != nil {
 			appLogger.Warn("failed to initialise metrics reader", "gpu_id", info.ID, "err", err)
+
 			continue
 		}
 		readers[info.ID] = reader
@@ -132,6 +133,7 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 					return procErr
 				}
 			}
+
 			return nil
 		case err := <-samplerErrCh:
 			samplerErrCh = nil
@@ -173,6 +175,7 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 			}
 
 			appLogger.Info("shutdown complete")
+
 			return nil
 		}
 	}

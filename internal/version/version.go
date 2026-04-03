@@ -32,5 +32,6 @@ func Set(v Info) {
 func Current() Info {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
+
 	return info
 }

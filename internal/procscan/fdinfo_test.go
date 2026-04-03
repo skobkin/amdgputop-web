@@ -56,5 +56,6 @@ func readTestdata(t *testing.T, name string) []byte {
 	if err != nil {
 		t.Fatalf("read %s: %v", name, err)
 	}
+
 	return data
 }

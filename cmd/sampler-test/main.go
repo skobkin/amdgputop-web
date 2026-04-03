@@ -54,6 +54,7 @@ func parseFlags(base config.Config) options {
 	flag.Parse()
 
 	opts.procCfg.Enable = opts.collectProcs
+
 	return opts
 }
 
@@ -111,6 +112,7 @@ func main() {
 
 	if len(selected) == 0 {
 		logger.Warn("no GPUs matched selection", "gpu_id", opts.gpuFilter)
+
 		return
 	}
 
@@ -120,6 +122,7 @@ func main() {
 		reader, err := sampler.NewReader(info.ID, opts.sysfsRoot, opts.debugfsRoot, readerLogger)
 		if err != nil {
 			logger.Warn("sampler reader init failed", "gpu_id", info.ID, "err", err)
+
 			continue
 		}
 		readers[info.ID] = reader
@@ -169,6 +172,7 @@ func main() {
 
 	if len(readers) == 0 && !opts.collectProcs {
 		logger.Warn("no telemetry sources selected", "gpu_count", len(selected))
+
 		return
 	}
 
@@ -209,6 +213,7 @@ func main() {
 
 	if samplerManager == nil && len(readers) == 0 && (procManager == nil || !procManager.Ready()) {
 		logger.Warn("no telemetry sources available for selected GPUs", "gpu_count", len(selected))
+
 		return
 	}
 
@@ -234,6 +239,7 @@ func main() {
 			reader, hasReader := readers[id]
 			if !hasReader {
 				fmt.Printf("GPU %s (%s) sample: metrics unavailable (reader init failed)\n\n", id, gpuLabel(infoByID[id]))
+
 				continue
 			}
 			sample = reader.Sample()
@@ -243,6 +249,7 @@ func main() {
 		data, err := json.MarshalIndent(payload, "", "  ")
 		if err != nil {
 			logger.Error("encode sample", "gpu_id", id, "err", err)
+
 			continue
 		}
 		fmt.Printf("GPU %s (%s) sample:\n%s\n\n", id, gpuLabel(infoByID[id]), string(data))
@@ -254,12 +261,14 @@ func main() {
 			snapshot, ok := procManager.Latest(id)
 			if !ok {
 				fmt.Printf("- %s (%s): no process data available yet\n", id, gpuLabel(infoByID[id]))
+
 				continue
 			}
 			payload := api.NewProcsMessage(snapshot)
 			data, err := json.MarshalIndent(payload, "", "  ")
 			if err != nil {
 				logger.Error("encode process snapshot", "gpu_id", id, "err", err)
+
 				continue
 			}
 			fmt.Printf("GPU %s (%s) processes:\n%s\n", id, gpuLabel(infoByID[id]), string(data))
@@ -272,16 +281,20 @@ func waitUntil(timeout time.Duration, condition func() bool) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if condition() {
+
 			return true
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+
 	return condition()
 }
 
 func gpuLabel(info gpu.Info) string {
 	if info.Name != "" {
+
 		return info.Name
 	}
+
 	return info.ID
 }
