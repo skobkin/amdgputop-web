@@ -48,7 +48,7 @@ export function formatBytes(value: number | null, fractionDigits = 1): string {
   return `${result.toFixed(index === 0 ? 0 : fractionDigits)} ${BYTE_UNITS[index]}`;
 }
 
-export function formatTimeAgo(timestamp: string | null): string {
+export function formatTimeAgo(timestamp: string | null, nowMs = Date.now()): string {
   if (!timestamp) {
     return '—';
   }
@@ -56,7 +56,7 @@ export function formatTimeAgo(timestamp: string | null): string {
   if (Number.isNaN(ts)) {
     return '—';
   }
-  const diff = Date.now() - ts;
+  const diff = nowMs - ts;
   if (diff < 0) {
     return 'just now';
   }

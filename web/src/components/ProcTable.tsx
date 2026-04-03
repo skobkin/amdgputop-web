@@ -15,10 +15,22 @@ const DEFAULT_SORT: SortState = { key: 'total', direction: 'desc' };
 
 interface Props {
   snapshot?: ProcSnapshot;
+  nowMs: number;
 }
 
-const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
+const ProcTable: FunctionalComponent<Props> = ({ snapshot, nowMs }) => {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const updatedLabel = useMemo(() => {
+    if (!snapshot?.ts) {
+      return '—';
+    }
+    const snapshotTs = Date.parse(snapshot.ts);
+    if (Number.isNaN(snapshotTs)) {
+      return '—';
+    }
+    const effectiveNowMs = nowMs < snapshotTs ? Date.now() : nowMs;
+    return formatTimeAgo(snapshot.ts, effectiveNowMs);
+  }, [nowMs, snapshot?.ts]);
 
   const processes = useMemo(() => {
     if (!snapshot) {
@@ -79,7 +91,7 @@ const ProcTable: FunctionalComponent<Props> = ({ snapshot }) => {
       <header style="margin-bottom: 0.5rem;">
         <h2 style="margin: 0;">Processes</h2>
         <small class="muted">
-          Last update {formatTimeAgo(snapshot.ts)} · {processes.length} entries
+          Last update {updatedLabel} · {processes.length} entries
         </small>
       </header>
       {processes.length === 0 ? (

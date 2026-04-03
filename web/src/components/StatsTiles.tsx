@@ -1,12 +1,26 @@
 import type { FunctionalComponent } from 'preact';
+import { useMemo } from 'preact/hooks';
 import type { StatsSample } from '@/types';
 import { formatMHz, formatPercent, formatPower, formatTemperature, formatRPM, formatTimeAgo } from '@/lib/format';
 
 interface Props {
   sample?: StatsSample;
+  nowMs: number;
 }
 
-const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
+const StatsTiles: FunctionalComponent<Props> = ({ sample, nowMs }) => {
+  const updatedLabel = useMemo(() => {
+    if (!sample?.ts) {
+      return '—';
+    }
+    const sampleTs = Date.parse(sample.ts);
+    if (Number.isNaN(sampleTs)) {
+      return '—';
+    }
+    const effectiveNowMs = nowMs < sampleTs ? Date.now() : nowMs;
+    return formatTimeAgo(sample.ts, effectiveNowMs);
+  }, [nowMs, sample?.ts]);
+
   if (!sample) {
     return (
       <div class="empty-state">
@@ -16,7 +30,7 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
     );
   }
 
-  const { metrics, ts } = sample;
+  const { metrics } = sample;
 
   return (
     <>
@@ -76,7 +90,7 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample }) => {
           </div>
         </article>
       </section>
-      <small class="muted stats-updated">Last update {formatTimeAgo(ts)}</small>
+      <small class="muted stats-updated">Last update {updatedLabel}</small>
     </>
   );
 };

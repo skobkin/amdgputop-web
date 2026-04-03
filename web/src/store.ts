@@ -16,8 +16,11 @@ const UI_SCALE_STORAGE_KEY = 'amdgputop-web:ui-scale';
 const CHART_WINDOW_STORAGE_KEY = 'amdgputop-web:chart-window-points';
 const CHARTS_COLLAPSED_STORAGE_KEY = 'amdgputop-web:charts-collapsed';
 const SELECTED_GPU_STORAGE_KEY = 'amdgputop-web:selected-gpu-id';
+const RELATIVE_TIME_REFRESH_STORAGE_KEY = 'amdgputop-web:relative-time-refresh-ms';
 
 const DEFAULT_CHART_WINDOW_POINTS = 300;
+export const RELATIVE_TIME_REFRESH_OPTIONS = [5000, 10000, 30000, 60000] as const;
+const DEFAULT_RELATIVE_TIME_REFRESH_MS = 10000;
 
 function isValidScale(value: string | null): value is UIScale {
   return (
@@ -93,10 +96,33 @@ function readInitialSelectedGpuId(): string | null {
   return null;
 }
 
+function isValidRelativeTimeRefresh(value: number): value is (typeof RELATIVE_TIME_REFRESH_OPTIONS)[number] {
+  return RELATIVE_TIME_REFRESH_OPTIONS.includes(value as (typeof RELATIVE_TIME_REFRESH_OPTIONS)[number]);
+}
+
+function readInitialRelativeTimeRefreshMs(): number {
+  if (typeof window === 'undefined') {
+    return DEFAULT_RELATIVE_TIME_REFRESH_MS;
+  }
+  try {
+    const stored = window.localStorage.getItem(RELATIVE_TIME_REFRESH_STORAGE_KEY);
+    if (stored) {
+      const parsed = Number.parseInt(stored, 10);
+      if (isValidRelativeTimeRefresh(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore storage errors and use fallback.
+  }
+  return DEFAULT_RELATIVE_TIME_REFRESH_MS;
+}
+
 const initialUiScale = readInitialUiScale();
 const initialChartWindowPoints = readInitialChartWindow();
 const initialChartsCollapsed = readInitialChartsCollapsed();
 const initialSelectedGpuId = readInitialSelectedGpuId();
+const initialRelativeTimeRefreshMs = readInitialRelativeTimeRefreshMs();
 
 interface AppState {
   gpus: GPUInfo[];
@@ -114,6 +140,7 @@ interface AppState {
   version: VersionInfo | null;
   error: string | null;
   uiScale: UIScale;
+  relativeTimeRefreshMs: number;
   setGPUs: (gpus: GPUInfo[]) => void;
   setSelectedGpuId: (id: string | null) => void;
   setConnection: (status: ConnectionStatus) => void;
@@ -128,6 +155,7 @@ interface AppState {
   setVersion: (info: VersionInfo) => void;
   setError: (message: string | null) => void;
   setUiScale: (scale: UIScale) => void;
+  setRelativeTimeRefreshMs: (ms: number) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -146,6 +174,7 @@ export const useAppStore = create<AppState>((set) => ({
   version: null,
   error: null,
   uiScale: initialUiScale,
+  relativeTimeRefreshMs: initialRelativeTimeRefreshMs,
   setGPUs: (gpus) =>
     set((state) => {
       let selected = state.selectedGpuId;
@@ -265,5 +294,19 @@ export const useAppStore = create<AppState>((set) => ({
         }
       }
       return { uiScale: scale };
+    }),
+  setRelativeTimeRefreshMs: (ms) =>
+    set((state) => {
+      if (!isValidRelativeTimeRefresh(ms) || state.relativeTimeRefreshMs === ms) {
+        return {};
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(RELATIVE_TIME_REFRESH_STORAGE_KEY, String(ms));
+        } catch {
+          // Ignore storage errors.
+        }
+      }
+      return { relativeTimeRefreshMs: ms };
     })
 }));
