@@ -326,7 +326,9 @@ func detectHwmon(deviceRoot *os.Root) *os.Root {
 	if err != nil {
 		return nil
 	}
-	defer hwmonRoot.Close()
+	defer func() {
+		_ = hwmonRoot.Close()
+	}()
 
 	entries, err := fs.ReadDir(hwmonRoot.FS(), ".")
 	if err != nil {
