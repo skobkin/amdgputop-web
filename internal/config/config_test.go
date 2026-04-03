@@ -19,6 +19,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.SampleInterval != 2*time.Second {
 		t.Fatalf("unexpected SampleInterval %s", cfg.SampleInterval)
 	}
+	if !cfg.LazySampler {
+		t.Fatalf("expected LazySampler enabled by default")
+	}
+	if cfg.LazySamplerIdleTTL != 30*time.Second {
+		t.Fatalf("unexpected LazySamplerIdleTTL %s", cfg.LazySamplerIdleTTL)
+	}
 	if cfg.LogLevel != slog.LevelInfo {
 		t.Fatalf("unexpected LogLevel %v", cfg.LogLevel)
 	}
@@ -45,6 +51,8 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadEnvOverrides(t *testing.T) {
 	t.Setenv("APP_LISTEN_ADDR", "127.0.0.1:9000")
 	t.Setenv("APP_SAMPLE_INTERVAL", "500ms")
+	t.Setenv("APP_LAZY_SAMPLER", "false")
+	t.Setenv("APP_LAZY_SAMPLER_IDLE_TTL", "45s")
 	t.Setenv("APP_ALLOWED_ORIGINS", "https://example.com, https://other.test")
 	t.Setenv("APP_DEFAULT_GPU", "card42")
 	t.Setenv("APP_ENABLE_PROMETHEUS", "true")
@@ -73,6 +81,12 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.SampleInterval != 500*time.Millisecond {
 		t.Fatalf("SampleInterval override failed, got %s", cfg.SampleInterval)
+	}
+	if cfg.LazySampler {
+		t.Fatalf("LazySampler override failed, expected false")
+	}
+	if cfg.LazySamplerIdleTTL != 45*time.Second {
+		t.Fatalf("LazySamplerIdleTTL override failed, got %s", cfg.LazySamplerIdleTTL)
 	}
 	wantOrigins := []string{"https://example.com", "https://other.test"}
 	if !reflect.DeepEqual(cfg.AllowedOrigins, wantOrigins) {
@@ -135,6 +149,9 @@ func TestLoadInvalidEnv(t *testing.T) {
 		val  string
 	}{
 		{"NegativeSampleInterval", "APP_SAMPLE_INTERVAL", "-1s"},
+		{"InvalidLazySamplerBool", "APP_LAZY_SAMPLER", "maybe"},
+		{"InvalidLazySamplerTTL", "APP_LAZY_SAMPLER_IDLE_TTL", "slow"},
+		{"NonPositiveLazySamplerTTL", "APP_LAZY_SAMPLER_IDLE_TTL", "0"},
 		{"InvalidOrigins", "APP_ALLOWED_ORIGINS", ","},
 		{"InvalidPrometheusBool", "APP_ENABLE_PROMETHEUS", "maybe"},
 		{"InvalidLogLevel", "APP_LOG_LEVEL", "loud"},

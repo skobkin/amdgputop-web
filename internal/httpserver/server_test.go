@@ -123,26 +123,43 @@ func TestReadyzStates(t *testing.T) {
 		t.Fatalf("NewReader error: %v", err)
 	}
 
-	manager, err := sampler.NewManager(10*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	lazyManager, err := sampler.NewManager(10*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
 	if err != nil {
 		t.Fatalf("NewManager error: %v", err)
 	}
-	t.Cleanup(func() { _ = manager.Close() })
+	t.Cleanup(func() { _ = lazyManager.Close() })
+	if err := lazyManager.EnableLazy(cfg.LazySamplerIdleTTL); err != nil {
+		t.Fatalf("EnableLazy error: %v", err)
+	}
 
-	tsInit := newTestHTTPServer(t, cfg, gpus, manager, nil)
+	// Lazy idle sampler should still be reported ready.
+	tsInit := newTestHTTPServer(t, cfg, gpus, lazyManager, nil)
 	defer tsInit.Close()
 
-	assertReadyz(t, tsInit.URL+"/readyz", http.StatusServiceUnavailable, "initializing", "waiting_for_samples")
+	assertReadyz(t, tsInit.URL+"/readyz", http.StatusOK, "ok", "")
+
+	// Eager sampler without samples should remain initializing.
+	cfg.LazySampler = false
+	eagerManager, err := sampler.NewManager(10*time.Millisecond, map[string]*sampler.Reader{"card0": reader}, logger)
+	if err != nil {
+		t.Fatalf("NewManager error: %v", err)
+	}
+	t.Cleanup(func() { _ = eagerManager.Close() })
+
+	tsEager := newTestHTTPServer(t, cfg, gpus, eagerManager, nil)
+	defer tsEager.Close()
+
+	assertReadyz(t, tsEager.URL+"/readyz", http.StatusServiceUnavailable, "initializing", "waiting_for_samples")
 
 	// Now run the sampler and expect ready.
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() {
-		_ = manager.Run(ctx)
+		_ = eagerManager.Run(ctx)
 	}()
 
-	waitFor(t, 2*time.Second, manager.Ready)
-	assertReadyz(t, tsInit.URL+"/readyz", http.StatusOK, "ok", "")
+	waitFor(t, 2*time.Second, eagerManager.Ready)
+	assertReadyz(t, tsEager.URL+"/readyz", http.StatusOK, "ok", "")
 
 }
 
@@ -495,7 +512,7 @@ func TestAPIGPUMetricsUnavailable(t *testing.T) {
 	if resp2.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when no sample available, got %d", resp2.StatusCode)
 	}
-	if !strings.Contains(string(body2), "no sample available") {
+	if !strings.Contains(string(body2), "metrics sampler unavailable") {
 		t.Fatalf("expected error body about missing sample, got %q", string(body2))
 	}
 }
@@ -1137,11 +1154,13 @@ func waitFor(t *testing.T, timeout time.Duration, condition func() bool) {
 
 func defaultTestConfig() config.Config {
 	return config.Config{
-		ListenAddr:     ":0",
-		SampleInterval: 2 * time.Second,
-		AllowedOrigins: []string{"*"},
-		DefaultGPU:     "auto",
-		ProcRoot:       "/proc",
+		ListenAddr:         ":0",
+		SampleInterval:     2 * time.Second,
+		LazySampler:        true,
+		LazySamplerIdleTTL: 30 * time.Second,
+		AllowedOrigins:     []string{"*"},
+		DefaultGPU:         "auto",
+		ProcRoot:           "/proc",
 		WS: config.WebsocketConfig{
 			MaxClients:   1024,
 			WriteTimeout: 3 * time.Second,
