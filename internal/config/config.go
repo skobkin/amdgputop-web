@@ -56,7 +56,7 @@ func Load() (Config, error) {
 		ListenAddr:         ":8080",
 		SampleInterval:     2 * time.Second,
 		LazySampler:        true,
-		LazySamplerIdleTTL: 30 * time.Second,
+		LazySamplerIdleTTL: 10 * time.Second,
 		AllowedOrigins:     []string{"*"},
 		DefaultGPU:         "auto",
 		EnablePrometheus:   false,

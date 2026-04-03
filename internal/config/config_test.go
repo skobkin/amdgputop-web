@@ -22,7 +22,7 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.LazySampler {
 		t.Fatalf("expected LazySampler enabled by default")
 	}
-	if cfg.LazySamplerIdleTTL != 30*time.Second {
+	if cfg.LazySamplerIdleTTL != 10*time.Second {
 		t.Fatalf("unexpected LazySamplerIdleTTL %s", cfg.LazySamplerIdleTTL)
 	}
 	if cfg.LogLevel != slog.LevelInfo {

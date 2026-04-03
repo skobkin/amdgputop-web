@@ -107,7 +107,7 @@ to observe host processes.
 | `APP_CHARTS_ENABLE`        | `true`              | Toggle historical charts feature.                              |
 | `APP_CHARTS_MAX_POINTS`    | `7200`              | Maximum data points retained per chart.                        |
 | `APP_LAZY_SAMPLER`         | `true`              | Run sampler/proc scanning on demand and pause when idle.       |
-| `APP_LAZY_SAMPLER_IDLE_TTL`| `30s`               | Keep background sampling alive after the last observed demand. |
+| `APP_LAZY_SAMPLER_IDLE_TTL`| `10s`               | Keep background sampling alive after the last observed demand. |
 | `APP_SAMPLE_INTERVAL`      | `2s`                | Metrics sampling cadence.                                      |
 | `APP_PROC_ENABLE`          | `true`              | Toggle process scanner feature.                                |
 | `APP_PROC_SCAN_INTERVAL`   | `2s`                | Interval between process snapshot scans.                       |
