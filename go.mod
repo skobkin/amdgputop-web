@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.1
 
 require (
-	github.com/coder/websocket v1.8.14
+	github.com/coder/websocket v1.8.15
 	github.com/jaypipes/pcidb v1.1.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
