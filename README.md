@@ -20,6 +20,15 @@ Preact single-page app.
 - ⚙️ Configuration via environment variables (`APP_*`), including sampler cadence,
   process scanner limits, and allowed origins.
 
+## Tested on
+
+| GPU                       | Architecture | Type  | By                                          |
+|---------------------------|--------------|-------|---------------------------------------------|
+| RX 6800 XT                | RDNA 2       | dGPU  | [@skobkin](https://github.com/skobkin)      |
+| RX 6900 XT                | RDNA 2       | dGPU  | [@rayslava](https://github.com/rayslava)    |
+| RX 7800 XT                | RDNA 3       | dGPU  | [@skobkin](https://github.com/skobkin)      |
+| Radeon Vega (Ryzen 7 4800HS) | GCN 5    | iGPU  | [@skobkin](https://github.com/skobkin)      |
+
 ## Quick Start (host build)
 
 ```bash
