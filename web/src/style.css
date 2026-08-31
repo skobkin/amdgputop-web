@@ -488,7 +488,9 @@ header {
   gap: 0.35rem;
   background: var(--accent-soft);
   color: var(--text-strong);
-  padding: 0.35rem 0.75rem;
+  /* Keep the pill close to the surrounding footer text height instead of
+     towering over it. */
+  padding: 0.15rem 0.65rem;
   border-radius: 999px;
   font-size: 0.8rem;
 }
@@ -515,13 +517,24 @@ footer a {
   white-space: nowrap;
 }
 
+.scale-picker label {
+  /* Pico styles labels as blocks with a bottom margin, which shoves them off
+     center inside this inline flex row. */
+  margin: 0;
+}
+
 .scale-picker select {
   font: inherit;
+  /* Pico gives form elements a 1rem bottom margin and width: 100%; both
+     misplace and inflate the pill inside this flex row. */
+  margin: 0;
+  width: auto;
   color: var(--text-strong);
   background: var(--surface-control);
   border: 1px solid var(--border-control);
   border-radius: 999px;
-  padding: 0.2rem 0.6rem;
+  padding: 0.1rem 0.55rem;
+  line-height: 1.4;
 }
 
 .scale-picker select:focus {
