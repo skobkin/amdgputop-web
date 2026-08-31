@@ -1,14 +1,68 @@
 import type { FunctionalComponent } from 'preact';
 import { useMemo } from 'preact/hooks';
-import type { StatsSample } from '@/types';
+import type { MetricCapabilities, Metrics, StatsSample } from '@/types';
+import { metricSupported } from '@/lib/capabilities';
 import { formatMHz, formatPercent, formatPower, formatTemperature, formatRPM, formatTimeAgo } from '@/lib/format';
+
+interface TileDefinition {
+  metric: keyof MetricCapabilities;
+  label: string;
+  title: string;
+  format: (metrics: Metrics) => string;
+}
+
+const TILES: TileDefinition[] = [
+  {
+    metric: 'gpu_busy_pct',
+    label: 'Load',
+    title: 'Overall GPU engine utilization percentage',
+    format: (metrics) => formatPercent(metrics.gpu_busy_pct, 1)
+  },
+  {
+    metric: 'mem_busy_pct',
+    label: 'Memory',
+    title: 'Memory controller busy percentage',
+    format: (metrics) => formatPercent(metrics.mem_busy_pct, 1)
+  },
+  {
+    metric: 'sclk_mhz',
+    label: 'Core',
+    title: 'Graphics core clock frequency',
+    format: (metrics) => formatMHz(metrics.sclk_mhz)
+  },
+  {
+    metric: 'mclk_mhz',
+    label: 'MemClk',
+    title: 'Memory clock frequency',
+    format: (metrics) => formatMHz(metrics.mclk_mhz)
+  },
+  {
+    metric: 'temp_c',
+    label: 'Temp',
+    title: 'GPU temperature',
+    format: (metrics) => formatTemperature(metrics.temp_c)
+  },
+  {
+    metric: 'fan_rpm',
+    label: 'Fan',
+    title: 'Fan speed in RPM',
+    format: (metrics) => formatRPM(metrics.fan_rpm)
+  },
+  {
+    metric: 'power_w',
+    label: 'Power',
+    title: 'Instantaneous power draw',
+    format: (metrics) => formatPower(metrics.power_w)
+  }
+];
 
 interface Props {
   sample?: StatsSample;
+  capabilities?: MetricCapabilities | null;
   nowMs: number;
 }
 
-const StatsTiles: FunctionalComponent<Props> = ({ sample, nowMs }) => {
+const StatsTiles: FunctionalComponent<Props> = ({ sample, capabilities, nowMs }) => {
   const updatedLabel = useMemo(() => {
     if (!sample?.ts) {
       return '—';
@@ -31,64 +85,23 @@ const StatsTiles: FunctionalComponent<Props> = ({ sample, nowMs }) => {
   }
 
   const { metrics } = sample;
+  const visibleTiles = TILES.filter((tile) => metricSupported(capabilities, tile.metric));
+
+  if (visibleTiles.length === 0) {
+    return null;
+  }
 
   return (
     <>
       <section class="grid stats-grid">
-        <article
-          class="metric-card metric-card--inline"
-          title="Overall GPU engine utilization percentage"
-        >
-          <div class="metric-card__row">
-            <h3>Load</h3>
-            <span class="metric-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
-          </div>
-        </article>
-        <article
-          class="metric-card metric-card--inline"
-          title="Memory controller busy percentage"
-        >
-          <div class="metric-card__row">
-            <h3>Memory</h3>
-            <span class="metric-value">{formatPercent(metrics.mem_busy_pct, 1)}</span>
-          </div>
-        </article>
-        <article
-          class="metric-card metric-card--inline"
-          title="Graphics core clock frequency"
-        >
-          <div class="metric-card__row">
-            <h3>Core</h3>
-            <span class="metric-value">{formatMHz(metrics.sclk_mhz)}</span>
-          </div>
-        </article>
-        <article
-          class="metric-card metric-card--inline"
-          title="Memory clock frequency"
-        >
-          <div class="metric-card__row">
-            <h3>MemClk</h3>
-            <span class="metric-value">{formatMHz(metrics.mclk_mhz)}</span>
-          </div>
-        </article>
-        <article class="metric-card metric-card--inline" title="GPU temperature">
-          <div class="metric-card__row">
-            <h3>Temp</h3>
-            <span class="metric-value">{formatTemperature(metrics.temp_c)}</span>
-          </div>
-        </article>
-        <article class="metric-card metric-card--inline" title="Fan speed in RPM">
-          <div class="metric-card__row">
-            <h3>Fan</h3>
-            <span class="metric-value">{formatRPM(metrics.fan_rpm)}</span>
-          </div>
-        </article>
-        <article class="metric-card metric-card--inline" title="Instantaneous power draw">
-          <div class="metric-card__row">
-            <h3>Power</h3>
-            <span class="metric-value">{formatPower(metrics.power_w)}</span>
-          </div>
-        </article>
+        {visibleTiles.map((tile) => (
+          <article key={tile.metric} class="metric-card metric-card--inline" title={tile.title}>
+            <div class="metric-card__row">
+              <h3>{tile.label}</h3>
+              <span class="metric-value">{tile.format(metrics)}</span>
+            </div>
+          </article>
+        ))}
       </section>
       <small class="muted stats-updated">Last update {updatedLabel}</small>
     </>

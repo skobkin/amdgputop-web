@@ -39,6 +39,15 @@ func TestReaderSampleSysfs(t *testing.T) {
 	assertUintEqual(t, sample.Metrics.VRAMTotalBytes, 2147483648)
 	assertUintEqual(t, sample.Metrics.GTTUsedBytes, 52428800)
 	assertUintEqual(t, sample.Metrics.GTTTotalBytes, 4294967296)
+
+	caps := reader.Capabilities()
+	if caps == nil {
+		t.Fatalf("expected capabilities to be detected")
+	}
+	if !caps.GPUBusyPct || !caps.MemBusyPct || !caps.SCLKMHz || !caps.MCLKMHz ||
+		!caps.TempC || !caps.FanRPM || !caps.PowerW || !caps.VRAM || !caps.GTT {
+		t.Fatalf("expected a fully capable GPU, got %+v", caps)
+	}
 }
 
 func TestReaderSampleDebugFallback(t *testing.T) {
@@ -70,6 +79,23 @@ func TestReaderSampleDebugFallback(t *testing.T) {
 
 	assertUintEqual(t, sample.Metrics.VRAMTotalBytes, 17179869184)
 	assertUintEqual(t, sample.Metrics.GTTTotalBytes, 34359738368)
+
+	caps := reader.Capabilities()
+	if caps == nil {
+		t.Fatalf("expected capabilities to be detected")
+	}
+	if caps.MemBusyPct {
+		t.Fatalf("expected MemBusyPct to be unsupported without mem_busy_percent")
+	}
+	if caps.FanRPM {
+		t.Fatalf("expected FanRPM to be unsupported without hwmon fan input")
+	}
+	if !caps.GPUBusyPct || !caps.SCLKMHz || !caps.MCLKMHz || !caps.TempC || !caps.PowerW {
+		t.Fatalf("expected debugfs-backed capabilities, got %+v", caps)
+	}
+	if !caps.VRAM || !caps.GTT {
+		t.Fatalf("expected memory capabilities, got %+v", caps)
+	}
 }
 
 func TestReaderSampleWithNilRoots(t *testing.T) {
@@ -100,6 +126,10 @@ func TestReaderSampleWithNilRoots(t *testing.T) {
 	}
 	if sample.Metrics.GTTUsedBytes != nil || sample.Metrics.GTTTotalBytes != nil {
 		t.Fatalf("expected missing GTT metrics when roots are nil")
+	}
+
+	if caps := reader.Capabilities(); caps != nil {
+		t.Fatalf("expected nil capabilities when roots are nil, got %+v", caps)
 	}
 }
 

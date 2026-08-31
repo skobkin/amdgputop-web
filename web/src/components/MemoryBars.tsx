@@ -2,11 +2,13 @@ import type { FunctionalComponent } from 'preact';
 import { useMemo } from 'preact/hooks';
 import { useAppStore } from '@/store';
 import ChartsPanel from '@/components/ChartsPanel';
-import type { StatsSample } from '@/types';
+import type { MetricCapabilities, StatsSample } from '@/types';
+import { metricSupported } from '@/lib/capabilities';
 import { formatBytes, formatPercent } from '@/lib/format';
 
 interface Props {
   sample?: StatsSample;
+  capabilities?: MetricCapabilities | null;
 }
 
 function ratio(used: number | null, total: number | null): number | null {
@@ -16,7 +18,7 @@ function ratio(used: number | null, total: number | null): number | null {
   return Math.min(1, Math.max(0, used / total));
 }
 
-const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
+const MemoryBars: FunctionalComponent<Props> = ({ sample, capabilities }) => {
   const chartsEnabled = useAppStore((state) => state.features.charts);
   const chartWindowPoints = useAppStore((state) => state.chartWindowPoints);
   const chartsCollapsed = useAppStore((state) => state.chartsCollapsed);
@@ -33,6 +35,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
   }, [chartHistoryByGpu, sample.gpu_id]);
 
   const { metrics } = sample;
+  const loadSupported = metricSupported(capabilities, 'gpu_busy_pct');
   const loadRatio =
     metrics.gpu_busy_pct == null || Number.isNaN(metrics.gpu_busy_pct)
       ? null
@@ -43,6 +46,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
   const memoryRows = [
     {
       key: 'vram',
+      metric: 'vram' as const,
       label: 'VRAM Usage',
       used: metrics.vram_used_bytes,
       total: metrics.vram_total_bytes,
@@ -50,34 +54,41 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
     },
     {
       key: 'gtt',
+      metric: 'gtt' as const,
       label: 'GTT Usage',
       used: metrics.gtt_used_bytes,
       total: metrics.gtt_total_bytes,
       ratio: gttRatio
     }
-  ];
+  ].filter((row) => metricSupported(capabilities, row.metric));
+
+  if (!loadSupported && memoryRows.length === 0) {
+    return null;
+  }
 
   return (
     <section class="usage-section">
       <div class="grid usage-grid">
-        <article
-          class="metric-card metric-card--compact"
-          title="Current GPU load averaged over the sampling interval"
-        >
-          <div class="metric-card__row">
-            <h3>GPU Load</h3>
-            <span class="metric-inline-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
-          </div>
-          <div
-            class="progress progress--thin"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round((loadRatio ?? 0) * 100)}
+        {loadSupported ? (
+          <article
+            class="metric-card metric-card--compact"
+            title="Current GPU load averaged over the sampling interval"
           >
-            <span style={`width: ${(loadRatio ?? 0) * 100}%`}></span>
-          </div>
-        </article>
+            <div class="metric-card__row">
+              <h3>GPU Load</h3>
+              <span class="metric-inline-value">{formatPercent(metrics.gpu_busy_pct, 1)}</span>
+            </div>
+            <div
+              class="progress progress--thin"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((loadRatio ?? 0) * 100)}
+            >
+              <span style={`width: ${(loadRatio ?? 0) * 100}%`}></span>
+            </div>
+          </article>
+        ) : null}
         {memoryRows.map((row) => {
           const usedText =
             row.used != null && row.total != null
@@ -127,6 +138,7 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample }) => {
               history={chartHistory}
               windowPoints={chartWindowPoints}
               intervalMs={sampleIntervalMs}
+              capabilities={capabilities}
             />
           ) : null}
         </div>

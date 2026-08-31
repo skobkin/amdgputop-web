@@ -368,6 +368,8 @@ const App = () => {
     return statsByGpu[selectedGpuId];
   }, [selectedGpuId, statsByGpu]);
 
+  const selectedGpu = useMemo(() => gpus.find((gpu) => gpu.id === selectedGpuId), [gpus, selectedGpuId]);
+
   const procSnapshot = useMemo<ProcSnapshot | undefined>(() => {
     if (!selectedGpuId) {
       return undefined;
@@ -429,8 +431,12 @@ const App = () => {
         </div>
       )}
 
-      <StatsTiles sample={statsSample} nowMs={nowMs} />
-      <MemoryBars sample={statsSample} />
+      <StatsTiles
+        sample={statsSample}
+        capabilities={selectedGpu?.capabilities}
+        nowMs={nowMs}
+      />
+      <MemoryBars sample={statsSample} capabilities={selectedGpu?.capabilities} />
       {features.procs ? <ProcTable snapshot={procSnapshot} nowMs={nowMs} /> : null}
 
       <footer>
