@@ -20,11 +20,12 @@ const (
 
 // Info describes a single GPU device discovered via sysfs.
 type Info struct {
-	ID         string `json:"id"`
-	PCI        string `json:"pci"`
-	PCIID      string `json:"pci_id"`
-	Name       string `json:"name"`
-	RenderNode string `json:"render_node"`
+	ID           string        `json:"id"`
+	PCI          string        `json:"pci"`
+	PCIID        string        `json:"pci_id"`
+	Name         string        `json:"name"`
+	RenderNode   string        `json:"render_node"`
+	Capabilities *Capabilities `json:"capabilities"` // nil = unknown; consumers should assume support
 }
 
 // Discover enumerates DRM cards exposed via sysfs under the provided root.

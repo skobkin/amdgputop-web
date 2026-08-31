@@ -374,7 +374,14 @@ func TestAPIGPUs(t *testing.T) {
 
 	cfg := defaultTestConfig()
 	gpus := []gpu.Info{
-		{ID: "card0", PCI: "0000:01:00.0", PCIID: "1002:73df", RenderNode: "/dev/dri/renderD128"},
+		{
+			ID:           "card0",
+			PCI:          "0000:01:00.0",
+			PCIID:        "1002:73df",
+			RenderNode:   "/dev/dri/renderD128",
+			Capabilities: &gpu.Capabilities{GPUBusyPct: true, FanRPM: false, MemBusyPct: false, VRAM: true, GTT: true},
+		},
+		{ID: "card1", PCI: "0000:02:00.0", PCIID: "1002:73e0", RenderNode: "/dev/dri/renderD129"},
 	}
 
 	ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
@@ -390,15 +397,86 @@ func TestAPIGPUs(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	var payload []gpu.Info
+	// Decoded as raw JSON to pin the wire format: capabilities serialize as
+	// an object when detected and as null when unknown (no reader).
+	var payload []map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if len(payload) != 1 || payload[0].ID != "card0" {
+	if len(payload) != 2 {
 		t.Fatalf("unexpected gpu payload %+v", payload)
 	}
+	if payload[0]["id"] != "card0" || payload[1]["id"] != "card1" {
+		t.Fatalf("unexpected gpu ids %+v", payload)
+	}
 
+	caps, ok := payload[0]["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected capabilities object for card0, got %v", payload[0]["capabilities"])
+	}
+	if busy, _ := caps["gpu_busy_pct"].(bool); !busy {
+		t.Fatalf("expected card0 gpu_busy_pct capability true, got %v", caps["gpu_busy_pct"])
+	}
+	if fan, _ := caps["fan_rpm"].(bool); fan {
+		t.Fatalf("expected card0 fan_rpm capability false, got %v", caps["fan_rpm"])
+	}
+
+	if _, ok := payload[1]["capabilities"]; !ok {
+		t.Fatalf("expected capabilities key to be present for card1")
+	}
+	if caps := payload[1]["capabilities"]; caps != nil {
+		t.Fatalf("expected null capabilities for card1, got %v", caps)
+	}
+}
+
+func TestWebSocketHelloCarriesGPUCapabilities(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultTestConfig()
+	gpus := []gpu.Info{
+		{ID: "card0", Capabilities: &gpu.Capabilities{GPUBusyPct: true, MemBusyPct: false}},
+	}
+
+	ts := newTestHTTPServer(t, cfg, gpus, nil, nil)
+	defer ts.Close()
+
+	wsURL := toWebsocketURL(ts.URL + "/ws")
+	cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(cctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("websocket dial: %v", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	defer closeWebsocket(nil, conn)
+
+	hello, err := expectHelloMessage(cctx, conn)
+	if err != nil {
+		t.Fatalf("hello message error: %v", err)
+	}
+
+	gpusPayload, ok := hello["gpus"].([]any)
+	if !ok || len(gpusPayload) != 1 {
+		t.Fatalf("expected one gpu in hello, got %v", hello["gpus"])
+	}
+	gpuPayload, ok := gpusPayload[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected gpu object in hello, got %v", gpusPayload[0])
+	}
+	caps, ok := gpuPayload["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected capabilities object in hello gpu, got %v", gpuPayload["capabilities"])
+	}
+	if busy, _ := caps["gpu_busy_pct"].(bool); !busy {
+		t.Fatalf("expected gpu_busy_pct capability true, got %v", caps["gpu_busy_pct"])
+	}
+	if fan, _ := caps["fan_rpm"].(bool); fan {
+		t.Fatalf("expected fan_rpm capability false, got %v", caps["fan_rpm"])
+	}
 }
 
 func TestServerGracefulShutdown(t *testing.T) {

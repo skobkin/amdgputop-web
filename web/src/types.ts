@@ -1,9 +1,23 @@
+export interface MetricCapabilities {
+  gpu_busy_pct: boolean;
+  mem_busy_pct: boolean;
+  sclk_mhz: boolean;
+  mclk_mhz: boolean;
+  temp_c: boolean;
+  fan_rpm: boolean;
+  power_w: boolean;
+  vram: boolean;
+  gtt: boolean;
+}
+
 export interface GPUInfo {
   id: string;
   pci: string;
   pci_id: string;
   name: string;
   render_node: string;
+  /** Null when unknown (e.g. no metrics reader); consumers should assume support. */
+  capabilities?: MetricCapabilities | null;
 }
 
 export interface Metrics {

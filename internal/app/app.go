@@ -29,7 +29,8 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 	appLogger.Info("discovered GPUs", "count", len(gpus))
 
 	readers := make(map[string]*sampler.Reader, len(gpus))
-	for _, info := range gpus {
+	for i := range gpus {
+		info := gpus[i]
 		readerLogger := baseLogger.With("component", "sampler_reader", "gpu_id", info.ID)
 		reader, err := sampler.NewReader(info.ID, cfg.SysfsRoot, cfg.DebugfsRoot, readerLogger)
 		if err != nil {
@@ -38,6 +39,7 @@ func Run(ctx context.Context, baseLogger *slog.Logger, cfg config.Config) error 
 			continue
 		}
 		readers[info.ID] = reader
+		gpus[i].Capabilities = reader.Capabilities()
 	}
 
 	if len(gpus) > 0 && len(readers) == 0 {

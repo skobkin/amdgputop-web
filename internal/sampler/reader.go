@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/skobkin/amdgputop-web/internal/gpu"
 )
 
 const (
@@ -28,6 +30,10 @@ const (
 	hwmonFanFile          = "fan1_input"
 	hwmonPowerAverageFile = "power1_average"
 	hwmonPowerInputFile   = "power1_input"
+	memInfoVRAMUsedFile   = "mem_info_vram_used"
+	memInfoVRAMTotalFile  = "mem_info_vram_total"
+	memInfoGTTUsedFile    = "mem_info_gtt_used"
+	memInfoGTTTotalFile   = "mem_info_gtt_total"
 )
 
 // Reader fetches telemetry metrics for a single GPU.
@@ -40,6 +46,8 @@ type Reader struct {
 	deviceRoot    *os.Root
 	debugCardRoot *os.Root
 	hwmonRoot     *os.Root
+	fanRoot       *os.Root
+	capabilities  *gpu.Capabilities
 	mu            sync.RWMutex
 	closeOnce     sync.Once
 	closeErr      error
@@ -79,6 +87,17 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 		}
 	}
 
+	hwmonRoot := detectHwmon(deviceRoot)
+
+	// Steam Deck quirk: the chassis fan is exposed by the platform
+	// steamdeck_hwmon device rather than the GPU's amdgpu hwmon. Generic
+	// sources win; the quirk only fills the gap, and only for the Deck's
+	// own APU.
+	var fanRoot *os.Root
+	if !fileExists(hwmonRoot, hwmonFanFile) && isSteamDeck(sysRoot) && isDeckAPU(deviceRoot) {
+		fanRoot = findHwmonByName(sysRoot, steamdeckHwmonName, hwmonFanFile)
+	}
+
 	reader := &Reader{
 		cardID:        cardID,
 		cardIndex:     cardIndex,
@@ -87,8 +106,10 @@ func NewReader(cardID, sysfsRoot, debugfsRoot string, logger *slog.Logger) (*Rea
 		debugRoot:     debugRoot,
 		deviceRoot:    deviceRoot,
 		debugCardRoot: debugCardRoot,
-		hwmonRoot:     detectHwmon(deviceRoot),
+		hwmonRoot:     hwmonRoot,
+		fanRoot:       fanRoot,
 	}
+	reader.capabilities = reader.detectCapabilities()
 
 	return reader, nil
 }
@@ -106,19 +127,19 @@ func (r *Reader) Sample() Sample {
 	metrics.SCLKMHz = r.readCurrentClock(ppDpmSclkFilename)
 	metrics.MCLKMHz = r.readCurrentClock(ppDpmMclkFilename)
 
-	metrics.VRAMUsedBytes = r.readUint("mem_info_vram_used")
-	metrics.VRAMTotalBytes = r.readUint("mem_info_vram_total")
-	metrics.GTTUsedBytes = r.readUint("mem_info_gtt_used")
-	metrics.GTTTotalBytes = r.readUint("mem_info_gtt_total")
+	metrics.VRAMUsedBytes = r.readUint(memInfoVRAMUsedFile)
+	metrics.VRAMTotalBytes = r.readUint(memInfoVRAMTotalFile)
+	metrics.GTTUsedBytes = r.readUint(memInfoGTTUsedFile)
+	metrics.GTTTotalBytes = r.readUint(memInfoGTTTotalFile)
 
 	if r.hwmonRoot != nil {
 		metrics.TempC = r.readScaledFloat(r.hwmonRoot, hwmonTempFile, 1000)
-		metrics.FanRPM = r.readFloat(r.hwmonRoot, hwmonFanFile)
 		metrics.PowerW = r.readScaledFloat(r.hwmonRoot, hwmonPowerAverageFile, 1_000_000)
 		if metrics.PowerW == nil {
 			metrics.PowerW = r.readScaledFloat(r.hwmonRoot, hwmonPowerInputFile, 1_000_000)
 		}
 	}
+	metrics.FanRPM = r.readFanRPM()
 
 	// Optional debugfs fallback for select metrics.
 	if metrics.GPUBusyPct == nil || metrics.SCLKMHz == nil || metrics.MCLKMHz == nil || metrics.PowerW == nil || metrics.TempC == nil {
@@ -145,6 +166,23 @@ func (r *Reader) Sample() Sample {
 		Timestamp: now,
 		Metrics:   metrics,
 	}
+}
+
+// Capabilities reports which metric sources were detected for this GPU.
+// The result is computed once at construction and is safe for concurrent
+// use. It returns nil for a Reader built without NewReader.
+func (r *Reader) Capabilities() *gpu.Capabilities {
+	return r.capabilities
+}
+
+// readFanRPM reads the fan speed from the quirk-provided platform hwmon
+// source when present, falling back to the GPU's own hwmon device.
+func (r *Reader) readFanRPM() *float64 {
+	if r.fanRoot != nil {
+		return r.readFloat(r.fanRoot, hwmonFanFile)
+	}
+
+	return r.readFloat(r.hwmonRoot, hwmonFanFile)
 }
 
 func (r *Reader) readPercent(name string) *float64 {
@@ -257,6 +295,12 @@ func (r *Reader) readDebugFSInfo() debugInfo {
 		return debugInfo{}
 	}
 
+	return parseDebugFSInfo(data)
+}
+
+// parseDebugFSInfo extracts metric values from amdgpu_pm_info contents.
+// The first line exposing a field wins.
+func parseDebugFSInfo(data []byte) debugInfo {
 	info := debugInfo{}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
@@ -264,44 +308,27 @@ func (r *Reader) readDebugFSInfo() debugInfo {
 		if line == "" {
 			continue
 		}
-		lower := strings.ToLower(line)
 
-		switch {
-		case strings.HasPrefix(lower, "gpu load"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.gpuLoad = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "sclk"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.sclkMHz = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "mclk"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.mclkMHz = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "gpu temperature"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.tempC = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "gpu power"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.powerW = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "power:"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.powerW = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "average gfxclk"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.sclkMHz = float64Ptr(val)
-			}
-		case strings.HasPrefix(lower, "average memclk"):
-			if val, ok := extractFirstFloat(line); ok {
-				info.mclkMHz = float64Ptr(val)
-			}
-		case strings.Contains(lower, "gpu load"):
+		switch classifyDebugFSLine(strings.ToLower(line)) {
+		case debugFieldGPULoad:
 			if val, ok := extractFirstFloat(line); ok && info.gpuLoad == nil {
 				info.gpuLoad = float64Ptr(val)
+			}
+		case debugFieldSCLK:
+			if val, ok := extractFirstFloat(line); ok && info.sclkMHz == nil {
+				info.sclkMHz = float64Ptr(val)
+			}
+		case debugFieldMCLK:
+			if val, ok := extractFirstFloat(line); ok && info.mclkMHz == nil {
+				info.mclkMHz = float64Ptr(val)
+			}
+		case debugFieldTempC:
+			if val, ok := extractFirstFloat(line); ok && info.tempC == nil {
+				info.tempC = float64Ptr(val)
+			}
+		case debugFieldPowerW:
+			if val, ok := extractFirstFloat(line); ok && info.powerW == nil {
+				info.powerW = float64Ptr(val)
 			}
 		}
 	}
@@ -315,6 +342,40 @@ type debugInfo struct {
 	mclkMHz *float64
 	tempC   *float64
 	powerW  *float64
+}
+
+type debugField int
+
+const (
+	debugFieldNone debugField = iota
+	debugFieldGPULoad
+	debugFieldSCLK
+	debugFieldMCLK
+	debugFieldTempC
+	debugFieldPowerW
+)
+
+// classifyDebugFSLine maps an amdgpu_pm_info line (lowercased) to the
+// metric field it exposes, or debugFieldNone when unrecognized. It is the
+// single source of truth for the file's field layout, shared by value
+// parsing and capability detection.
+func classifyDebugFSLine(lower string) debugField {
+	switch {
+	case strings.HasPrefix(lower, "gpu load"):
+		return debugFieldGPULoad
+	case strings.HasPrefix(lower, "sclk"), strings.HasPrefix(lower, "average gfxclk"):
+		return debugFieldSCLK
+	case strings.HasPrefix(lower, "mclk"), strings.HasPrefix(lower, "average memclk"):
+		return debugFieldMCLK
+	case strings.HasPrefix(lower, "gpu temperature"):
+		return debugFieldTempC
+	case strings.HasPrefix(lower, "gpu power"), strings.HasPrefix(lower, "power:"):
+		return debugFieldPowerW
+	case strings.Contains(lower, "gpu load"):
+		return debugFieldGPULoad
+	}
+
+	return debugFieldNone
 }
 
 func detectHwmon(deviceRoot *os.Root) *os.Root {
@@ -358,6 +419,12 @@ func (r *Reader) Close() error {
 				errs = append(errs, fmt.Errorf("close hwmon root: %w", err))
 			}
 			r.hwmonRoot = nil
+		}
+		if r.fanRoot != nil {
+			if err := r.fanRoot.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close fan root: %w", err))
+			}
+			r.fanRoot = nil
 		}
 		if r.debugCardRoot != nil {
 			if err := r.debugCardRoot.Close(); err != nil {
