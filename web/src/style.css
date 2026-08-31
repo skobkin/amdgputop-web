@@ -2,15 +2,92 @@
   color-scheme: dark;
   --pico-background-color: #121212;
   --pico-color: #f4f4f5;
+  /* Accent stays purple in both themes; these two must be defined here (and not
+     redefined in the light block) so they out-rank Pico's per-theme palettes. */
   --pico-primary: #6c5ce7;
   --pico-primary-hover: #7f76ff;
   --pico-border-radius: 8px;
+
+  /* Dark theme tokens; light values live in :root[data-theme='light'] below. */
+  --bg-glow: rgba(108, 92, 231, 0.12);
+  --bg-base-start: #181818;
+  --bg-base-end: #0d0d0d;
+  --surface-raised: rgba(255, 255, 255, 0.04);
+  --surface-panel: rgba(255, 255, 255, 0.02);
+  --surface-card: rgba(255, 255, 255, 0.03);
+  --surface-control: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-control: rgba(255, 255, 255, 0.15);
+  --text-strong: rgba(255, 255, 255, 0.9);
+  --text-body: rgba(255, 255, 255, 0.85);
+  --text-soft: rgba(255, 255, 255, 0.8);
+  --text-muted: rgba(255, 255, 255, 0.7);
+  --text-faint: rgba(255, 255, 255, 0.65);
+  --text-dim: rgba(255, 255, 255, 0.55);
+  --table-cell-bg: #121212;
+  --track-bg: rgba(255, 255, 255, 0.08);
+  --accent-soft: rgba(108, 92, 231, 0.2);
+  --focus-ring: rgba(108, 92, 231, 0.25);
+  --progress-fill: linear-gradient(90deg, rgba(108, 92, 231, 0.8), rgba(129, 236, 236, 0.9));
+  --chart-axis: rgba(241, 245, 249, 0.85);
+  --chart-axis-soft: rgba(241, 245, 249, 0.7);
+  --chart-cursor: rgba(241, 245, 249, 0.35);
+  --chart-grid: rgba(255, 255, 255, 0.12);
+  --chart-load: rgba(108, 92, 231, 0.9);
+  --chart-vram: rgba(129, 236, 236, 0.85);
+  --chart-gtt: rgba(252, 211, 77, 0.85);
+  --chart-sclk: rgba(255, 118, 117, 0.85);
+  --chart-mclk: rgba(162, 155, 254, 0.85);
+  --chart-temp: rgba(255, 204, 112, 0.85);
+  --chart-power: rgba(116, 185, 255, 0.85);
+  --chart-fan: rgba(214, 48, 49, 0.85);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --pico-background-color: #fff;
+  --pico-color: #373c44;
+
+  --bg-glow: rgba(108, 92, 231, 0.07);
+  --bg-base-start: #fafbfd;
+  --bg-base-end: #eef0f5;
+  --surface-raised: rgba(0, 0, 0, 0.03);
+  --surface-panel: rgba(0, 0, 0, 0.015);
+  --surface-card: rgba(0, 0, 0, 0.025);
+  --surface-control: rgba(0, 0, 0, 0.04);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-soft: rgba(0, 0, 0, 0.1);
+  --border-control: rgba(0, 0, 0, 0.2);
+  --text-strong: #1c2128;
+  --text-body: #2c3240;
+  --text-soft: #3d434f;
+  --text-muted: #565d69;
+  --text-faint: #5d6470;
+  --text-dim: #6a7280;
+  --table-cell-bg: #fff;
+  --track-bg: rgba(0, 0, 0, 0.08);
+  --accent-soft: rgba(108, 92, 231, 0.15);
+  --focus-ring: rgba(108, 92, 231, 0.3);
+  --progress-fill: linear-gradient(90deg, rgba(108, 92, 231, 0.75), rgba(14, 116, 144, 0.85));
+  --chart-axis: rgba(28, 33, 40, 0.8);
+  --chart-axis-soft: rgba(28, 33, 40, 0.65);
+  --chart-cursor: rgba(28, 33, 40, 0.35);
+  --chart-grid: rgba(0, 0, 0, 0.1);
+  --chart-load: #5b4bc4;
+  --chart-vram: #0e7490;
+  --chart-gtt: #a16207;
+  --chart-sclk: #dc2626;
+  --chart-mclk: #6d28d9;
+  --chart-temp: #c2410c;
+  --chart-power: #0369a1;
+  --chart-fan: #991b1b;
 }
 
 body {
   min-height: 100vh;
-  background: radial-gradient(circle at top, rgba(108, 92, 231, 0.12), transparent 40%),
-    linear-gradient(180deg, #181818 0%, #0d0d0d 100%);
+  background: radial-gradient(circle at top, var(--bg-glow), transparent 40%),
+    linear-gradient(180deg, var(--bg-base-start) 0%, var(--bg-base-end) 100%);
 }
 
 main {
@@ -159,8 +236,8 @@ header {
 
 .metric-card {
   padding: var(--metric-card-padding);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--pico-border-radius);
   display: flex;
   flex-direction: column;
@@ -170,7 +247,7 @@ header {
 .metric-card h3 {
   margin: 0;
   font-size: var(--metric-title-size);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-muted);
 }
 
 .metric-card__row {
@@ -196,7 +273,7 @@ header {
 
 .metric-card--compact .metric-inline-value {
   font-size: var(--metric-inline-size);
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-body);
 }
 
 .usage-section {
@@ -210,8 +287,8 @@ header {
   display: flex;
   flex-direction: column;
   gap: calc(0.45rem * var(--spacing-scale));
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-soft);
   border-radius: var(--pico-border-radius);
 }
 
@@ -229,7 +306,7 @@ header {
   background: transparent;
   border: none;
   margin: 0;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-soft);
   font-size: calc(0.9rem * var(--spacing-scale));
   font-weight: 600;
   line-height: 1.2;
@@ -245,7 +322,7 @@ header {
 
 .chart-toggle__icon {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-faint);
 }
 
 .charts-grid {
@@ -262,8 +339,8 @@ header {
 }
 
 .chart-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-card);
+  border: 1px solid var(--border-soft);
   border-radius: var(--pico-border-radius);
   padding: calc(0.5rem * var(--spacing-scale));
   display: flex;
@@ -277,12 +354,12 @@ header {
   justify-content: space-between;
   gap: 0.5rem;
   font-size: calc(0.78rem * var(--spacing-scale));
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-soft);
 }
 
 .chart-tooltip {
   font-size: calc(0.7rem * var(--spacing-scale));
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--text-faint);
   text-align: right;
 }
 
@@ -301,20 +378,20 @@ header {
 }
 
 .chart-canvas .uplot .u-axis text {
-  fill: rgba(241, 245, 249, 0.85);
+  fill: var(--chart-axis);
 }
 
 .chart-canvas .uplot .u-axis .u-label {
-  fill: rgba(241, 245, 249, 0.7);
+  fill: var(--chart-axis-soft);
 }
 
 .chart-canvas .uplot .u-legend {
-  color: rgba(241, 245, 249, 0.8);
+  color: var(--text-soft);
 }
 
 .chart-canvas .uplot .u-cursor-x,
 .chart-canvas .uplot .u-cursor-y {
-  border-color: rgba(241, 245, 249, 0.35);
+  border-color: var(--chart-cursor);
 }
 
 .stats-updated {
@@ -329,7 +406,7 @@ header {
 .progress {
   height: var(--progress-height);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--track-bg);
   overflow: hidden;
 }
 
@@ -340,7 +417,7 @@ header {
 .progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, rgba(108, 92, 231, 0.8), rgba(129, 236, 236, 0.9));
+  background: var(--progress-fill);
 }
 
 .table-responsive {
@@ -357,14 +434,18 @@ header {
 .proc-table thead {
   position: sticky;
   top: 0;
-  background: #121212;
+  background: var(--table-cell-bg);
   z-index: 1;
 }
 
+/* Explicit cell background/color so the table does not inherit Pico's
+   theme-dependent `th, td` styling (see issue #67). */
 .proc-table th,
 .proc-table td {
   padding: var(--table-padding-y) var(--table-padding-x);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--table-cell-bg);
+  color: var(--pico-color);
   white-space: nowrap;
 }
 
@@ -376,7 +457,7 @@ header {
 }
 
 .proc-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-raised);
 }
 
 .proc-table td.name-cell {
@@ -403,8 +484,8 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: rgba(108, 92, 231, 0.2);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--accent-soft);
+  color: var(--text-strong);
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
   font-size: 0.8rem;
@@ -412,7 +493,7 @@ header {
 
 footer {
   margin-top: calc(2rem * var(--spacing-scale));
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--text-faint);
   font-size: var(--footer-font-size);
   display: flex;
   flex-wrap: wrap;
@@ -421,7 +502,7 @@ footer {
 }
 
 footer a {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-body);
 }
 
 .scale-picker {
@@ -434,9 +515,9 @@ footer a {
 
 .scale-picker select {
   font: inherit;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-strong);
+  background: var(--surface-control);
+  border: 1px solid var(--border-control);
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
 }
@@ -444,7 +525,7 @@ footer a {
 .scale-picker select:focus {
   outline: none;
   border-color: var(--pico-primary);
-  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.25);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .status-banner {
@@ -471,10 +552,10 @@ footer a {
 .empty-state {
   padding: 2rem;
   text-align: center;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-raised);
   border-radius: var(--pico-border-radius);
 }
 
 small.muted {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-dim);
 }

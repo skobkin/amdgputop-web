@@ -7,10 +7,18 @@ import type {
   VersionInfo
 } from './types';
 import { appendChartSample, type ChartHistory } from './lib/chartHistory';
+import {
+  applyTheme,
+  readStoredTheme,
+  THEME_STORAGE_KEY,
+  type ResolvedTheme,
+  type ThemePreference
+} from './lib/theme';
 
 type FeatureMap = Record<string, boolean>;
 
 export type UIScale = 'smallest' | 'small' | 'compact' | 'medium' | 'comfortable' | 'large';
+export type { ResolvedTheme, ThemePreference } from './lib/theme';
 
 const UI_SCALE_STORAGE_KEY = 'amdgputop-web:ui-scale';
 const CHART_WINDOW_STORAGE_KEY = 'amdgputop-web:chart-window-points';
@@ -123,6 +131,13 @@ const initialChartWindowPoints = readInitialChartWindow();
 const initialChartsCollapsed = readInitialChartsCollapsed();
 const initialSelectedGpuId = readInitialSelectedGpuId();
 const initialRelativeTimeRefreshMs = readInitialRelativeTimeRefreshMs();
+// The pre-paint script in index.html already resolved and applied the stored
+// preference, so read the concrete value back from the document element.
+const initialTheme = readStoredTheme();
+const initialResolvedTheme: ResolvedTheme =
+  (typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light')
+    ? 'light'
+    : 'dark';
 
 interface AppState {
   gpus: GPUInfo[];
@@ -141,6 +156,8 @@ interface AppState {
   error: string | null;
   uiScale: UIScale;
   relativeTimeRefreshMs: number;
+  theme: ThemePreference;
+  resolvedTheme: ResolvedTheme;
   setGPUs: (gpus: GPUInfo[]) => void;
   setSelectedGpuId: (id: string | null) => void;
   setConnection: (status: ConnectionStatus) => void;
@@ -156,6 +173,7 @@ interface AppState {
   setError: (message: string | null) => void;
   setUiScale: (scale: UIScale) => void;
   setRelativeTimeRefreshMs: (ms: number) => void;
+  setTheme: (pref: ThemePreference) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -175,6 +193,8 @@ export const useAppStore = create<AppState>((set) => ({
   error: null,
   uiScale: initialUiScale,
   relativeTimeRefreshMs: initialRelativeTimeRefreshMs,
+  theme: initialTheme,
+  resolvedTheme: initialResolvedTheme,
   setGPUs: (gpus) =>
     set((state) => {
       let selected = state.selectedGpuId;
@@ -308,5 +328,23 @@ export const useAppStore = create<AppState>((set) => ({
         }
       }
       return { relativeTimeRefreshMs: ms };
+    }),
+  setTheme: (pref) =>
+    set((state) => {
+      if (state.theme === pref) {
+        // Re-apply anyway so an OS theme flip in auto mode refreshes the
+        // resolved value even when the preference itself is unchanged.
+        const resolved = applyTheme(pref);
+        return state.resolvedTheme === resolved ? {} : { resolvedTheme: resolved };
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(THEME_STORAGE_KEY, pref);
+        } catch {
+          // Ignore storage errors.
+        }
+      }
+      const resolvedTheme = applyTheme(pref);
+      return { theme: pref, resolvedTheme };
     })
 }));
