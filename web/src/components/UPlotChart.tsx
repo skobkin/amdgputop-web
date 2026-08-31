@@ -29,6 +29,34 @@ const formatXAxisTime = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit'
 });
 
+// uPlot renders y-axis tick labels right-aligned inside a gutter exactly as wide
+// as the configured axis `size`; labels wider than that budget get clipped at
+// the canvas edge (see issue #32). uPlot does not measure labels itself, so
+// measure the formatted values here and size the gutter to the widest one.
+const measureCtx = document.createElement('canvas').getContext('2d');
+
+const yAxisSize = (u: any, values: string[], axisIdx: number): number => {
+  // uPlot calls size() once at construction before any ticks exist and only
+  // creates the axis element when the returned size is > 0, so fall back to a
+  // safe fixed width and let the sizing cycle apply the measured width as soon
+  // as data produces ticks.
+  if (values == null || values.length === 0 || !measureCtx) {
+    return 64;
+  }
+  const axis = u.axes[axisIdx];
+  // axis.font[0] is scaled by devicePixelRatio, so convert the measurement back
+  // to CSS pixels via the ratio uPlot itself renders with.
+  measureCtx.font = axis.font[0];
+  let widest = 0;
+  for (const value of values) {
+    widest = Math.max(widest, measureCtx.measureText(value).width);
+  }
+  // The label's right edge is inset by the tick length and the gap (mirrors
+  // uPlot's own layout), plus one pixel of rounding headroom.
+  const tickSize = axis.ticks?.show ? axis.ticks.size : 0;
+  return Math.ceil(widest / uPlot.pxRatio) + axis.gap + tickSize + 1;
+};
+
 const UPlotChart = ({ title, data, height = 140, stroke, theme, valueFormatter }: Props) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<any>(null);
@@ -91,7 +119,7 @@ const UPlotChart = ({ title, data, height = 140, stroke, theme, valueFormatter }
         },
         {
           stroke: getCssVar('--chart-axis', 'rgba(128, 128, 128, 0.85)'),
-          size: 64,
+          size: yAxisSize,
           values: (_u: any, ticks: number[]) => ticks.map((tick) => formatAxisValue(tick)),
           grid: {
             stroke: getCssVar('--chart-grid', 'rgba(128, 128, 128, 0.2)')
