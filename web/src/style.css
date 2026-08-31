@@ -26,6 +26,7 @@
   --text-faint: rgba(255, 255, 255, 0.65);
   --text-dim: rgba(255, 255, 255, 0.55);
   --table-cell-bg: #121212;
+  --menu-bg: #1b1b1b;
   --track-bg: rgba(255, 255, 255, 0.08);
   --accent-soft: rgba(108, 92, 231, 0.2);
   --focus-ring: rgba(108, 92, 231, 0.25);
@@ -66,6 +67,7 @@
   --text-faint: #5d6470;
   --text-dim: #6a7280;
   --table-cell-bg: #fff;
+  --menu-bg: #fff;
   --track-bg: rgba(0, 0, 0, 0.08);
   --accent-soft: rgba(108, 92, 231, 0.15);
   --focus-ring: rgba(108, 92, 231, 0.3);
@@ -526,6 +528,14 @@ footer a {
   outline: none;
   border-color: var(--pico-primary);
   box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* Native select popups do not reliably follow color-scheme in every browser
+   (the popup can stay light while option text inherits the theme color),
+   so give options explicit colors for both themes. */
+select option {
+  background-color: var(--menu-bg);
+  color: var(--text-strong);
 }
 
 .status-banner {
