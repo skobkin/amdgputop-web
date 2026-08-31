@@ -6,6 +6,7 @@ import ProcTable from '@/components/ProcTable';
 import {
   RELATIVE_TIME_REFRESH_OPTIONS,
   useAppStore,
+  type ThemePreference,
   type UIScale
 } from './store';
 import {
@@ -51,6 +52,8 @@ const App = () => {
   const uiScale = useAppStore((state) => state.uiScale);
   const setUiScale = useAppStore((state) => state.setUiScale);
   const setRelativeTimeRefreshMs = useAppStore((state) => state.setRelativeTimeRefreshMs);
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -288,6 +291,19 @@ const App = () => {
     };
   }, [fetchVersionInfo, setConnection, setError, setFeatures, setGPUs, setSampleInterval, setVersion, updateProcs, updateStats]);
 
+  // Follow OS theme changes live while the preference is 'auto'.
+  useEffect(() => {
+    if (theme !== 'auto' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setTheme('auto');
+    media.addEventListener('change', onChange);
+    return () => {
+      media.removeEventListener('change', onChange);
+    };
+  }, [theme, setTheme]);
+
   // Resubscribe whenever selection changes.
   useEffect(() => {
     if (!selectedGpuId) {
@@ -432,6 +448,20 @@ const App = () => {
             {version.commit ? `(${version.commit.substring(0, 7)})` : ''}
           </span>
         ) : null}
+        <div class="scale-picker">
+          <label for="theme">Theme</label>
+          <select
+            id="theme"
+            value={theme}
+            onChange={(event) =>
+              setTheme((event.currentTarget as HTMLSelectElement).value as ThemePreference)
+            }
+          >
+            <option value="auto">Auto</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
         <div class="scale-picker">
           <label for="ui-scale">UI Scale</label>
           <select

@@ -1,5 +1,6 @@
 import uPlot from 'uplot';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { getCssVar, type ResolvedTheme } from '@/lib/theme';
 
 interface ChartTooltip {
   time: string;
@@ -11,6 +12,7 @@ interface Props {
   data: [number[], Array<number | null>];
   height?: number;
   stroke: string;
+  theme: ResolvedTheme;
   valueFormatter: (value: number | null) => string;
 }
 
@@ -27,10 +29,11 @@ const formatXAxisTime = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit'
 });
 
-const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props) => {
+const UPlotChart = ({ title, data, height = 140, stroke, theme, valueFormatter }: Props) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const lastOptionsRef = useRef<object | null>(null);
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null);
 
   const options = useMemo(() => {
@@ -79,19 +82,19 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       },
       axes: [
         {
-          stroke: 'rgba(241, 245, 249, 0.85)',
+          stroke: getCssVar('--chart-axis', 'rgba(128, 128, 128, 0.85)'),
           values: (_u: any, ticks: number[]) =>
             ticks.map((tick) => formatXAxisTime.format(new Date(tick))),
           grid: {
-            stroke: 'rgba(255, 255, 255, 0.12)'
+            stroke: getCssVar('--chart-grid', 'rgba(128, 128, 128, 0.2)')
           }
         },
         {
-          stroke: 'rgba(241, 245, 249, 0.85)',
+          stroke: getCssVar('--chart-axis', 'rgba(128, 128, 128, 0.85)'),
           size: 64,
           values: (_u: any, ticks: number[]) => ticks.map((tick) => formatAxisValue(tick)),
           grid: {
-            stroke: 'rgba(255, 255, 255, 0.12)'
+            stroke: getCssVar('--chart-grid', 'rgba(128, 128, 128, 0.2)')
           }
         }
       ],
@@ -121,7 +124,9 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
       },
       plugins: [plugin]
     };
-  }, [height, stroke, title, valueFormatter]);
+    // `theme` is a dependency because axis/grid colors are resolved from CSS
+    // variables at construction time and change with the active theme.
+  }, [height, stroke, theme, title, valueFormatter]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -134,9 +139,15 @@ const UPlotChart = ({ title, data, height = 140, stroke, valueFormatter }: Props
 
     if (!plotRef.current) {
       plotRef.current = new uPlotCtor({ ...options, width }, data, container);
+    } else if (lastOptionsRef.current !== options) {
+      // Options changed (e.g. theme switch): uPlot cannot re-theme in place,
+      // so rebuild the plot with the current data.
+      plotRef.current.destroy();
+      plotRef.current = new uPlotCtor({ ...options, width }, data, container);
     } else {
       plotRef.current.setData(data);
     }
+    lastOptionsRef.current = options;
 
     resizeObserverRef.current?.disconnect();
     resizeObserverRef.current = new ResizeObserver((entries) => {

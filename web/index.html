@@ -4,6 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AMD GPU stats</title>
+    <script>
+      // Set the resolved theme before first paint to avoid a flash of the wrong
+      // theme. Must stay in sync with web/src/lib/theme.ts (same storage key and
+      // resolution rules); kept inline because module imports are not available here.
+      try {
+        var pref = localStorage.getItem('amdgputop-web:theme') || 'auto';
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme =
+          pref === 'auto' ? (dark ? 'dark' : 'light') : pref;
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
