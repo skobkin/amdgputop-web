@@ -62,14 +62,20 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample, capabilities }) => {
     }
   ].filter((row) => metricSupported(capabilities, row.metric));
 
-  if (!loadSupported && memoryRows.length === 0) {
+  // Usage cards and charts are independent surfaces: hiding unsupported
+  // usage cards must not hide charts backed by other supported metrics.
+  const hasUsageCards = loadSupported || memoryRows.length > 0;
+  const hasCharts = chartsEnabled && chartHistory != null && sampleIntervalMs != null;
+
+  if (!hasUsageCards && !hasCharts) {
     return null;
   }
 
   return (
     <section class="usage-section">
-      <div class="grid usage-grid">
-        {loadSupported ? (
+      {hasUsageCards ? (
+        <div class="grid usage-grid">
+          {loadSupported ? (
           <article
             class="metric-card metric-card--compact"
             title="Current GPU load averaged over the sampling interval"
@@ -121,7 +127,8 @@ const MemoryBars: FunctionalComponent<Props> = ({ sample, capabilities }) => {
             </article>
           );
         })}
-      </div>
+        </div>
+      ) : null}
       {chartsEnabled && chartHistory && sampleIntervalMs ? (
         <div class={`chart-section${chartsCollapsed ? ' chart-section--collapsed' : ''}`}>
           <button
