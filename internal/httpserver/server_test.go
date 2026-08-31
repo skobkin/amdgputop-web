@@ -1171,7 +1171,9 @@ func writeFile(t *testing.T, path, contents string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+	// gosec G703 taints paths derived from t.TempDir() fixture trees; they
+	// are local test data, not user input.
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil { //nolint:gosec
 		t.Fatalf("write file: %v", err)
 	}
 }
